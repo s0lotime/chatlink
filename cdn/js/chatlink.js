@@ -26,17 +26,11 @@ async function receiveMessage(content) {
     const messagesContainer = document.getElementById('messages');
     const msg = document.createElement('div');
     msg.className = 'chat-message';
-
-    // Convert URLs in the content to actual links
     msg.innerHTML = convertUrlsToLinks(content);
-
-    // Extract real text by removing the URLs
+	
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
-
-    // Check for the first URL in the message
     const firstUrl = extractFirstUrl(content);
-
-    // If an image URL is found
+	
     if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
@@ -49,7 +43,7 @@ async function receiveMessage(content) {
             >
         `;
     } 
-    // If an audio URL is found
+
     else if (firstUrl && isAudio(firstUrl)) {
         msg.className = 'audio-message';
         msg.innerHTML = `
@@ -60,11 +54,9 @@ async function receiveMessage(content) {
             </audio>
         `;
     } else {
-        // If no media, just show the plain message
-        msg.innerHTML = realText;
+        msg.innerHTML = `<div class="chat-message">${realText}</div>`
     }
-
-    // Append the message and scroll to the bottom
+	
     messagesContainer.appendChild(msg);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
