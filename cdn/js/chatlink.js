@@ -61,24 +61,33 @@ async function receiveMessage(content) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-async function loadPriorMessages(supabaseVar, roomName) {
-	const {
-		data,
-		error
-	} = await supabaseVar.from('messages').select('sent_at, content').eq('room', roomName).order('sent_at', {
-		ascending: true
-	});
-	if (error) {
-		console.error('Error loading messages:', error);
-		return;
-	}
-	if (data.length === 0) {
-		receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+async function loadPriorMessages(roomName) {
+  try {
+    const response = await fetch(`https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch prior messages');
+    }
+
+    const responseData = await response.json();
+	  
+    if (responseData.length === 0) {
+      receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+    }
+	  
+    responseData.forEach(msg => {
+      receiveMessage(msg.content);
+    });
+  } catch (error) {
+    console.error('Error loading messages:', error);
   }
-	data.forEach(msg => {
-		receiveMessage(msg.content);
-	});
 }
+
 
 function convertUrlsToLinks(text) {
 	const urlPattern = /(\b(?:https?|ftp):\/\/[^\s/$.?#].[^\s]*)|(\b(?:www\.)[^\s/$.?#].[^\s]*)|(\b[^\s]+\.[a-z]{2,}\b)/gi;
@@ -95,10 +104,8 @@ async function bcMessage(supabaseVar, room) {
   const sendButton = document.getElementById('sendButton');
   const content = messageInput.value.trim();
   
-  // If no content is provided, exit early
   if (!content) return;
-
-  // Step 1: Insert message into Supabase to trigger broadcasting
+	
   const { error } = await supabaseVar.from('messages').insert([{
     content,
     room
@@ -134,8 +141,7 @@ async function bcMessage(supabaseVar, room) {
     } else {
       alert('Failed to send message!');
     }
-
-    // Reset the message input if successful
+	  
     messageInput.value = '';
     
   } catch (error) {
