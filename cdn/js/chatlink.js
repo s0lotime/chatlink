@@ -27,6 +27,7 @@ async function receiveMessage(content) {
     const msg = document.createElement('div');
     msg.className = 'chat-message';
     msg.innerHTML = convertUrlsToLinks(content);
+	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 	
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
@@ -58,7 +59,6 @@ async function receiveMessage(content) {
     }
 	
     messagesContainer.appendChild(msg);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 async function loadPriorMessages(roomName) {
