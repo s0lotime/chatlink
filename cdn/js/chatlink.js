@@ -7,14 +7,7 @@ async function isImage(url) {
         return false;
     }
 
-    try {
-        const response = await fetch(url, { method: 'HEAD' });
-        const contentType = response.headers.get('Content-Type') || '';
-        return contentType.startsWith('image/');
-    } catch (error) {
-        console.error('Error checking image Content-Type:', error);
-        return false;
-    }
+return true
 }
 
 function isAudio(url) {
@@ -23,7 +16,6 @@ function isAudio(url) {
     return audioExtensions.some(ext => lowerUrl.endsWith(ext));
 }
 
-// Helper: Extract the first URL from a string
 function extractFirstUrl(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const matches = text.match(urlRegex);
