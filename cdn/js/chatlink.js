@@ -1,7 +1,8 @@
 async function isImage(url) {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
+    const lowerUrl = url.toLowerCase();
 
-	const hasImageExtension = imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
+    const hasImageExtension = imageExtensions.some(ext => lowerUrl.endsWith(ext));
     if (!hasImageExtension) {
         return false;
     }
@@ -18,13 +19,19 @@ async function isImage(url) {
 
 function isAudio(url) {
     const audioExtensions = ['.mp3', '.ogg', '.wav'];
-    return audioExtensions.some(ext => url.toLowerCase().endsWith(ext));
+    const lowerUrl = url.toLowerCase();
+    return audioExtensions.some(ext => lowerUrl.endsWith(ext));
+}
+
+// Helper: Extract the first URL from a string
+function extractFirstUrl(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const matches = text.match(urlRegex);
+    return matches ? matches[0] : null;
 }
 
 async function receiveMessage(content) {
     const messagesContainer = document.getElementById('messages');
-    const messageInput = document.getElementById('messageInput');
-    const sendButton = document.getElementById('sendButton');
     const msg = document.createElement('div');
     msg.className = 'chat-message';
     msg.innerHTML = convertUrlsToLinks(content);
@@ -32,23 +39,30 @@ async function receiveMessage(content) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
     const messageText = msg.textContent.trim();
-    
-    if (await isImage(messageText)) {
+    const firstUrl = extractFirstUrl(messageText);
+
+    if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
           <img 
-            src="${messageText}" 
+            src="${firstUrl}" 
             alt="User sent image" 
             class="image-message" 
             onerror="this.onerror=null; this.src='/cdn/images/error.png';"
           >
         `;
     } 
-    else if (isAudio(messageText)) {
+    else if (firstUrl && isAudio(firstUrl)) {
         msg.className = 'audio-message';
-        msg.innerHTML = `<audio controls><source src="${messageText}" type="audio/mpeg">Your browser does not support the audio element.</audio>`;
+        msg.innerHTML = `
+          <audio controls>
+            <source src="${firstUrl}" type="audio/mpeg">
+            Your browser does not support the audio element.
+          </audio>
+        `;
     }
 }
+
 
 async function loadPriorMessages(supabaseVar, roomName) {
 	const {
