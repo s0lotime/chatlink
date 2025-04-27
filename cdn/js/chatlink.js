@@ -54,6 +54,37 @@ async function bcMessage(supabaseVar, room) {
 		messageInput.value = '';
 	}
 }
+function renderMessage(message) {
+   // Check if the message is an image URL or contains an image MIME type
+   const imageUrlPattern = /^(https?:\/\/usercdn\.chatlink\.sillyahhblud\.space\/i\/)/; // For usercdn image links
+   const imageMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+
+   const messageContainer = document.createElement('div');
+   messageContainer.classList.add('message'); // Add styling class
+
+   // Check if the message is a URL starting with usercdn chatlink image path
+   if (imageUrlPattern.test(message)) {
+      const imgElement = document.createElement('img');
+      imgElement.src = message;
+      imgElement.alt = 'Uploaded Image';
+      imgElement.classList.add('message-image'); // Add any CSS for the image
+      messageContainer.appendChild(imgElement);
+   }
+   // Check if MIME type indicates image
+   else if (imageMimeTypes.some(mime => message.includes(mime))) {
+      const imgElement = document.createElement('img');
+      imgElement.src = message;
+      imgElement.alt = 'Image from MIME type';
+      imgElement.classList.add('message-image');
+      messageContainer.appendChild(imgElement);
+   }
+   // Otherwise, treat the message as regular text
+   else {
+      messageContainer.textContent = message;
+   }
+
+   messagesContainer.appendChild(messageContainer);
+}
 async function startRealtime(supabaseVar) {
 	try {
 		await supabaseVar.channel('public:messages').on('postgres_changes', {
