@@ -90,22 +90,28 @@ function convertUrlsToLinks(text) {
 	});
 }
 async function bcMessage(supabaseVar, room) {
-	const messagesContainer = document.getElementById('messages');
-	const messageInput = document.getElementById('messageInput');
-	const sendButton = document.getElementById('sendButton');
-	const content = messageInput.value.trim();
-	if (!content) return;
-	const {
-		error
-	} = await supabaseVar.from('messages').insert([{
-		content,
-		room
-	}]);
-	const requestBody = {
-      content: content,
-      room: room,
-    };
-	
+  const messagesContainer = document.getElementById('messages');
+  const messageInput = document.getElementById('messageInput');
+  const sendButton = document.getElementById('sendButton');
+  const content = messageInput.value.trim();
+  
+  // If no content is provided, exit early
+  if (!content) return;
+
+  // Step 1: Insert message into Supabase to trigger broadcasting
+  const { error } = await supabaseVar.from('messages').insert([{
+    content,
+    room
+  }]);
+
+  // Step 2: Send message data to Cloudflare Worker to persist in D1
+  const requestBody = {
+    content: content,
+    room: room,
+  };
+
+  try {
+    // Send message data to Cloudflare Worker to be stored in D1
     const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
       method: 'POST',
       headers: {
@@ -128,12 +134,21 @@ async function bcMessage(supabaseVar, room) {
     } else {
       alert('Failed to send message!');
     }
-	if (error) {
-		console.error('Error sending message:', error);
-	} else {
-		messageInput.value = '';
-	}
+
+    // Reset the message input if successful
+    messageInput.value = '';
+    
+  } catch (error) {
+    console.error('Error sending message:', error);
+    alert('An error occurred while sending the message.');
+  }
+
+  // Step 3: Handle Supabase error if any
+  if (error) {
+    console.error('Error broadcasting message via Supabase:', error);
+  }
 }
+
 async function startRealtime(supabaseVar) {
 	try {
 		await supabaseVar.channel('public:messages').on('postgres_changes', {
