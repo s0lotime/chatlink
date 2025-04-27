@@ -54,7 +54,7 @@ async function receiveMessage(content) {
             </audio>
         `;
     } else {
-        msg.innerHTML = `<div class="chat-message">${realText}</div>`
+        msg.innerHTML = convertUrlsToLinks(content);
     }
 	
     messagesContainer.appendChild(msg);
