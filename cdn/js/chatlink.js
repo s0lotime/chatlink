@@ -20,7 +20,7 @@ async function loadPriorMessages() {
 		return;
 	}
 	data.forEach(msg => {
-		addMessage(msg.content);
+		receiveMessage(msg.content);
 	});
 }
 
@@ -59,7 +59,7 @@ async function startRealtime() {
 				table: 'messages'
 			}, (payload) => {
 				console.log('New message!', payload.new);
-				addMessage(payload.new.content || JSON.stringify(payload.new));
+				(payload.new.content || JSON.stringify(payload.new));
 			})
 			.subscribe();
 		console.log("connected");
