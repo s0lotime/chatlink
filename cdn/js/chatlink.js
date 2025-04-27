@@ -7,7 +7,7 @@ async function isImage(url) {
         return false;
     }
 
-return true
+    return true;
 }
 
 function isAudio(url) {
@@ -27,11 +27,11 @@ async function receiveMessage(content) {
     const msg = document.createElement('div');
     msg.className = 'chat-message';
     msg.innerHTML = convertUrlsToLinks(content);
-	messagesContainer.scrollTop = messagesContainer.scrollHeight;
-	
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
-	
+
     if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
@@ -43,9 +43,7 @@ async function receiveMessage(content) {
                 onerror="this.onerror=null; this.src='/cdn/images/error.png';"
             >
         `;
-    } 
-
-    else if (firstUrl && isAudio(firstUrl)) {
+    } else if (firstUrl && isAudio(firstUrl)) {
         msg.className = 'audio-message';
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
@@ -57,103 +55,149 @@ async function receiveMessage(content) {
     } else {
         msg.innerHTML = convertUrlsToLinks(content);
     }
-	
+
     messagesContainer.appendChild(msg);
 }
 
-async function loadPriorMessages(roomName) {
-  try {
-    const response = await fetch(`https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+let oldestMessageId = null;
+let isLoading = false;
+let allMessagesLoaded = false;
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch prior messages');
-    }
+async function loadPriorMessages(roomName, initialLoad = false) {
+    if (isLoading || allMessagesLoaded) return;
 
-    const responseData = await response.json();
-	  
-    if (responseData.length === 0) {
-      receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+    isLoading = true;
+    try {
+        let url = `https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`;
+        if (oldestMessageId && !initialLoad) {
+            url += `?before=${oldestMessageId}`;
+        }
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch prior messages');
+        }
+
+        const responseData = await response.json();
+
+        if (responseData.length === 0) {
+            if (initialLoad) {
+                receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+            }
+            allMessagesLoaded = true;
+            return;
+        }
+
+        const messagesContainer = document.getElementById('messages');
+        const scrollBefore = messagesContainer.scrollHeight;
+
+        for (let i = responseData.length - 1; i >= 0; i--) {
+            const message = responseData[i];
+            const msg = document.createElement('div');
+            msg.className = 'chat-message';
+            msg.innerHTML = convertUrlsToLinks(message.content);
+            messagesContainer.insertBefore(msg, messagesContainer.firstChild);
+
+            oldestMessageId = message.id;
+        }
+
+        const scrollAfter = messagesContainer.scrollHeight;
+        messagesContainer.scrollTop += (scrollAfter - scrollBefore);
+
+        if (initialLoad) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    } catch (error) {
+        console.error('Error loading messages:', error);
+    } finally {
+        isLoading = false;
     }
-	  
-    responseData.forEach(msg => {
-      receiveMessage(msg.content);
-    });
-  } catch (error) {
-    console.error('Error loading messages:', error);
-  }
 }
-
 
 function convertUrlsToLinks(text) {
-	const urlPattern = /(\b(?:https?|ftp):\/\/[^\s/$.?#].[^\s]*)|(\b(?:www\.)[^\s/$.?#].[^\s]*)|(\b[^\s]+\.[a-z]{2,}\b)/gi;
-	return text.replace(urlPattern, (url) => {
-		if (url.startsWith('www')) {
-			url = 'https://' + url;
-		}
-		return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-	});
-}
-async function bcMessage(supabaseVar, room) {
-  const messagesContainer = document.getElementById('messages');
-  const messageInput = document.getElementById('messageInput');
-  const sendButton = document.getElementById('sendButton');
-  const content = messageInput.value.trim();
-  
-  if (!content) return;
-	
-  const { error } = await supabaseVar.from('messages').insert([{
-    content,
-    room
-  }]);
-	
-  const requestBody = {
-    content: content,
-    room: room,
-  };
-
-  try {
-    const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
+    const urlPattern = /(\b(?:https?|ftp):\/\/[^\s/$.?#].[^\s]*)|(\b(?:www\.)[^\s/$.?#].[^\s]*)|(\b[^\s]+\.[a-z]{2,}\b)/gi;
+    return text.replace(urlPattern, (url) => {
+        if (url.startsWith('www')) {
+            url = 'https://' + url;
+        }
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
     });
-	  
-    if (!response.ok) {
-      const errorMessage = await response.text();
-      alert(`Error: ${errorMessage}`);
-      return;
+}
+
+async function bcMessage(supabaseVar, room) {
+    const messagesContainer = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const content = messageInput.value.trim();
+
+    if (!content) return;
+
+    const { error } = await supabaseVar.from('messages').insert([{
+        content,
+        room
+    }]);
+
+    const requestBody = {
+        content: content,
+        room: room,
+    };
+
+    try {
+        const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            const errorMessage = await response.text();
+            alert(`Error: ${errorMessage}`);
+            return;
+        }
+
+        const responseData = await response.json();
+        messageInput.value = '';
+    } catch (error) {
+        console.error('Error sending message:', error);
     }
 
-    const responseData = await response.json();
-    messageInput.value = '';
-    
-  } catch (error) {
-    console.error('Error sending message:', error);
-  }
-	
-  if (error) {
-    console.error('Error broadcasting message via Supabase:', error);
-  }
+    if (error) {
+        console.error('Error broadcasting message via Supabase:', error);
+    }
 }
 
 async function startRealtime(supabaseVar) {
-  try {
-    await supabaseVar.channel('public:messages').on('postgres_changes', {
-      event: 'INSERT',  // Listen for updates instead of inserts
-      schema: 'public',
-      table: 'messages'
-    }, (payload) => {
-      receiveMessage(payload.new.content || JSON.stringify(payload.new));
-    }).subscribe();
-    console.log("connected");
-  } catch (error) {
-    console.error("Connection failed", error);
-  }
+    try {
+        await supabaseVar.channel('public:messages').on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages'
+        }, (payload) => {
+            receiveMessage(payload.new.content || JSON.stringify(payload.new));
+        }).subscribe();
+        console.log("connected");
+    } catch (error) {
+        console.error("Connection failed", error);
+    }
 }
+
+// Add lazy loading on scroll:
+const messagesContainer = document.getElementById('messages');
+
+messagesContainer.addEventListener('scroll', async () => {
+    if (messagesContainer.scrollTop < 50) {
+        await loadPriorMessages('${requestedRoom}');
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadPriorMessages('${requestedRoom}', true);
+});
