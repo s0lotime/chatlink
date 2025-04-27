@@ -3,6 +3,11 @@ function isImage(url) {
     return imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
 }
 
+function isAudio(url) {
+    const audioExtensions = ['.mp3', '.ogg', '.wav'];
+    return audioExtensions.some(ext => url.toLowerCase().endsWith(ext));
+}
+
 function receiveMessage(content) {
 	const messagesContainer = document.getElementById('messages');
 	const messageInput = document.getElementById('messageInput');
@@ -13,10 +18,15 @@ function receiveMessage(content) {
 	messagesContainer.appendChild(msg);
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-	const imageUrl = msg.textContent.trim();
-    if (isImage(imageUrl)) {
+	 const messageText = msg.textContent.trim();
+	
+    if (await isImage(messageText)) {
         msg.className = 'image-message';
-        msg.innerHTML = `<img src="${imageUrl}" alt="User sent image" class="image-message">`;
+        msg.innerHTML = `<img src="${messageText}" alt="User sent image" class="image-message">`;
+    }
+    else if (isAudio(messageText)) {
+        msg.className = 'audio-message';
+        msg.innerHTML = `<audio controls><source src="${messageText}" type="audio/mpeg">Your browser does not support the audio element.</audio>`;
     }
 }
 async function loadPriorMessages(supabaseVar, roomName) {
