@@ -146,17 +146,17 @@ async function bcMessage(supabaseVar, room) {
 }
 
 async function startRealtime(supabaseVar) {
-	try {
-		await supabaseVar.channel('public:messages').on('postgres_changes', {
-			event: 'INSERT',
-			schema: 'public',
-			table: 'messages'
-		}, (payload) => {
-			console.log('New message!', payload.new);
-			receiveMessage(payload.new.content || JSON.stringify(payload.new));
-		}).subscribe();
-		console.log("connected");
-	} catch (error) {
-		console.error("non connect", error);
-	}
+  try {
+    await supabaseVar.channel('public:messages').on('postgres_changes', {
+      event: 'UPDATE',  // Listen for updates instead of inserts
+      schema: 'public',
+      table: 'messages'
+    }, (payload) => {
+      console.log('Message updated!', payload.new);
+      receiveMessage(payload.new.content || JSON.stringify(payload.new));
+    }).subscribe();
+    console.log("connected");
+  } catch (error) {
+    console.error("Connection failed", error);
+  }
 }
