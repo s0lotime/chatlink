@@ -59,7 +59,7 @@ async function startRealtime() {
 				table: 'messages'
 			}, (payload) => {
 				console.log('New message!', payload.new);
-				(payload.new.content || JSON.stringify(payload.new));
+				receiveMessage(payload.new.content || JSON.stringify(payload.new));
 			})
 			.subscribe();
 		console.log("connected");
