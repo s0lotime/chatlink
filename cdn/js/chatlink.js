@@ -22,7 +22,14 @@ function receiveMessage(content) {
     
     if (isImage(messageText)) {
         msg.className = 'image-message';
-        msg.innerHTML = `<img src="${messageText}" alt="User sent image" class="image-message">`;
+        msg.innerHTML = `
+          <img 
+            src="${messageText}" 
+            alt="User sent image" 
+            class="image-message" 
+            onerror="this.onerror=null; this.src='/cdn/images/error.png';"
+          >
+        `;
     } 
     else if (isAudio(messageText)) {
         msg.className = 'audio-message';
