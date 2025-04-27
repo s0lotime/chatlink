@@ -1,3 +1,8 @@
+function isImage(url) {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
+    return imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
+}
+
 function receiveMessage(content) {
 	const messagesContainer = document.getElementById('messages');
 	const messageInput = document.getElementById('messageInput');
@@ -8,9 +13,9 @@ function receiveMessage(content) {
 	messagesContainer.appendChild(msg);
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-	if (msg.textContent.includes('usercdn.chatlink.sillyahhblud.space/i/')) {
-        const imageUrl = msg.textContent;
-        msg.className = 'image-message'
+	const imageUrl = msg.textContent.trim();
+    if (isImage(imageUrl)) {
+        msg.className = 'image-message';
         msg.innerHTML = `<img src="${imageUrl}" alt="User sent image" class="image-message">`;
     }
 }
