@@ -9,20 +9,23 @@ function receiveMessage(content) {
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 async function loadPriorMessages(supabaseVar, room) {
-	const {
-		data,
-		error
-	} = await supabaseVar.from('messages').select(room).order('sent_at', {
-		ascending: true
-	});
-	if (error) {
-		console.error('Error loading messages:', error);
-		return;
-	}
-	data.forEach(msg => {
-		receiveMessage(msg.content);
-	});
+  const {
+    data,
+    error
+  } = await supabaseVar.from('messages').select(`${room}, content, sent_at`).order('sent_at', {
+    ascending: true
+  });
+
+  if (error) {
+    console.error('Error loading messages:', error);
+    return;
+  }
+
+  data.forEach(msg => {
+    receiveMessage(msg.content);
+  });
 }
+
 
 function convertUrlsToLinks(text) {
 	const urlPattern = /(\b(?:https?|ftp):\/\/[^\s/$.?#].[^\s]*)|(\b(?:www\.)[^\s/$.?#].[^\s]*)|(\b[^\s]+\.[a-z]{2,}\b)/gi;
