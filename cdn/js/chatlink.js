@@ -101,6 +101,33 @@ async function bcMessage(supabaseVar, room) {
 		content,
 		room
 	}]);
+	const requestBody = {
+      content: content,
+      room: room,
+    };
+	
+    const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    // Handle the response from the Worker
+    if (!response.ok) {
+      const errorMessage = await response.text();
+      alert(`Error: ${errorMessage}`);
+      return;
+    }
+
+    const responseData = await response.json();
+    if (responseData.success) {
+      alert('Message sent successfully!');
+      console.log('Message ID:', responseData.id);
+    } else {
+      alert('Failed to send message!');
+    }
 	if (error) {
 		console.error('Error sending message:', error);
 	} else {
