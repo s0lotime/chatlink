@@ -20,7 +20,7 @@ async function loadPriorMessages(supabaseVar, roomName) {
 		return;
 	}
 	if (data.length === 0) {
-		receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!"
+		receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
   }
 	data.forEach(msg => {
 		receiveMessage(msg.content);
