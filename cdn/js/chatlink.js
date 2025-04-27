@@ -9,10 +9,9 @@ function receiveMessage(content) {
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
 	if (msg.textContent.includes('usercdn.chatlink.sillyahhblud.space/i/')) {
-        // Replace text content with an image
-        const imageUrl = msg.textContent; // Assuming the URL is in the textContent
+        const imageUrl = msg.textContent;
         msg.className = 'image-message'
-        msg.innerHTML = `<img src="${imageUrl}" alt="Image">`; // Set image as HTML
+        msg.innerHTML = `<img src="${imageUrl}" alt="User sent image" class="image-message">`;
     }
 }
 async function loadPriorMessages(supabaseVar, roomName) {
