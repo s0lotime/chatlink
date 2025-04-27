@@ -134,10 +134,6 @@ async function bcMessage(supabaseVar, room) {
     }
 
     const responseData = await response.json();
-    if (responseData.success) {
-      console.log('Message ID:', responseData.id);
-    }
-	  
     messageInput.value = '';
     
   } catch (error) {
