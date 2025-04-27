@@ -9,26 +9,27 @@ function isAudio(url) {
 }
 
 function receiveMessage(content) {
-	const messagesContainer = document.getElementById('messages');
-	const messageInput = document.getElementById('messageInput');
-	const sendButton = document.getElementById('sendButton');
-	const msg = document.createElement('div');
-	msg.className = 'chat-message';
-	msg.innerHTML = convertUrlsToLinks(content);
-	messagesContainer.appendChild(msg);
-	messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    const messagesContainer = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const msg = document.createElement('div');
+    msg.className = 'chat-message';
+    msg.innerHTML = convertUrlsToLinks(content);
+    messagesContainer.appendChild(msg);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-	 const messageText = msg.textContent.trim();
-	
-    if (await isImage(messageText)) {
+    const messageText = msg.textContent.trim();
+    
+    if (isImage(messageText)) {
         msg.className = 'image-message';
         msg.innerHTML = `<img src="${messageText}" alt="User sent image" class="image-message">`;
-    }
+    } 
     else if (isAudio(messageText)) {
         msg.className = 'audio-message';
         msg.innerHTML = `<audio controls><source src="${messageText}" type="audio/mpeg">Your browser does not support the audio element.</audio>`;
     }
 }
+
 async function loadPriorMessages(supabaseVar, roomName) {
 	const {
 		data,
