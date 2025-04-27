@@ -43,12 +43,11 @@ body {
 	animation: popIn 0.3s ease forwards;
 }
 
-#messageInput {
+#roomInput {
 	width: 300px;
 	padding: 15px 20px;
 	margin-top: 15px;
 	border-radius: 9999px;
-	/* fully round */
 	border: 2px solid #007bff;
 	outline: none;
 	font-size: 16px;
@@ -57,7 +56,7 @@ body {
 	transition: 0.3s;
 }
 
-#messageInput:focus {
+#roomInput:focus {
 	border-color: #0056b3;
 	background: #e6f0ff;
 }
