@@ -29,14 +29,15 @@
   const messagesContainer = document.getElementById('messages');
   const messageInput = document.getElementById('messageInput');
   const sendButton = document.getElementById('sendButton');
-    
-  sendButton.addEventListener('click', bcMessage);
+
+  sendButton.addEventListener('click', () => bcMessage(supabase));
   messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') bcMessage();
+    if (e.key === 'Enter') bcMessage(supabase);
   });
 
-  startRealtime();
-  loadPriorMessages();
+
+  startRealtime(supabase);
+  loadPriorMessages(supabase);
 </script>
 
 
