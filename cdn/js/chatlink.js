@@ -110,15 +110,13 @@ async function bcMessage(supabaseVar, room) {
     content,
     room
   }]);
-
-  // Step 2: Send message data to Cloudflare Worker to persist in D1
+	
   const requestBody = {
     content: content,
     room: room,
   };
 
   try {
-    // Send message data to Cloudflare Worker to be stored in D1
     const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
       method: 'POST',
       headers: {
@@ -148,11 +146,10 @@ async function bcMessage(supabaseVar, room) {
 async function startRealtime(supabaseVar) {
   try {
     await supabaseVar.channel('public:messages').on('postgres_changes', {
-      event: 'UPDATE',  // Listen for updates instead of inserts
+      event: 'INSERT',  // Listen for updates instead of inserts
       schema: 'public',
       table: 'messages'
     }, (payload) => {
-      console.log('Message updated!', payload.new);
       receiveMessage(payload.new.content || JSON.stringify(payload.new));
     }).subscribe();
     console.log("connected");
