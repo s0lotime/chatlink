@@ -126,8 +126,7 @@ async function bcMessage(supabaseVar, room) {
       },
       body: JSON.stringify(requestBody),
     });
-
-    // Handle the response from the Worker
+	  
     if (!response.ok) {
       const errorMessage = await response.text();
       alert(`Error: ${errorMessage}`);
@@ -136,20 +135,15 @@ async function bcMessage(supabaseVar, room) {
 
     const responseData = await response.json();
     if (responseData.success) {
-      alert('Message sent successfully!');
       console.log('Message ID:', responseData.id);
-    } else {
-      alert('Failed to send message!');
     }
 	  
     messageInput.value = '';
     
   } catch (error) {
     console.error('Error sending message:', error);
-    alert('An error occurred while sending the message.');
   }
-
-  // Step 3: Handle Supabase error if any
+	
   if (error) {
     console.error('Error broadcasting message via Supabase:', error);
   }
