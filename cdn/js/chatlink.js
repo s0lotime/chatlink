@@ -26,35 +26,48 @@ async function receiveMessage(content) {
     const messagesContainer = document.getElementById('messages');
     const msg = document.createElement('div');
     msg.className = 'chat-message';
+
+    // Convert URLs in the content to actual links
     msg.innerHTML = convertUrlsToLinks(content);
-    messagesContainer.appendChild(msg);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-    const messageText = msg.textContent.trim();
-    const firstUrl = extractFirstUrl(messageText);
+    // Extract real text by removing the URLs
+    const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
 
+    // Check for the first URL in the message
+    const firstUrl = extractFirstUrl(content);
+
+    // If an image URL is found
     if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
-          <img 
-            src="${firstUrl}" 
-            alt="User sent image" 
-            class="image-message" 
-            onerror="this.onerror=null; this.src='/cdn/images/error.png';"
-          >
+            <div class="chat-message">${realText}</div>
+            <img 
+                src="${firstUrl}" 
+                alt="User sent image" 
+                class="image-message" 
+                onerror="this.onerror=null; this.src='/cdn/images/error.png';"
+            >
         `;
     } 
+    // If an audio URL is found
     else if (firstUrl && isAudio(firstUrl)) {
         msg.className = 'audio-message';
         msg.innerHTML = `
-          <audio controls>
-            <source src="${firstUrl}" type="audio/mpeg">
-            Your browser does not support the audio element.
-          </audio>
+            <div class="chat-message">${realText}</div>
+            <audio controls>
+                <source src="${firstUrl}" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
         `;
+    } else {
+        // If no media, just show the plain message
+        msg.innerHTML = realText;
     }
-}
 
+    // Append the message and scroll to the bottom
+    messagesContainer.appendChild(msg);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
 
 async function loadPriorMessages(supabaseVar, roomName) {
 	const {
