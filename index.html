@@ -2,43 +2,56 @@
 <html lang="en">
    <head>
       <meta charset="UTF-8">
-      <title>Chatlink</title>
+      <title>Welcome to Chatlink</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="stylesheet" href="/cdn/css/chat.css"/>
+      <link rel="stylesheet" href="/cdn/css/homepage.css"/>
       <link rel="apple-touch-icon" href="/favicon.ico">
    </head>
-  
    <body>
       <div class="chat-wrapper">
          <div class="chat-container" id="messages">
-         </div>
-         <div class="chat-input">
-            <button id="uploadButton"></button>
-            <input type="text" id="messageInput" placeholder="Type your message..." />
-            <button id="sendButton">Send</button>
+            <div class="chat-message">Welcome to Chatlink!</div>
+            <div class="chat-message">Chatlink is a place where you can talk to your friends unfiltered and unblocked.</div>
+            <div class="chat-message">You don't need any special desgination or room setup. Just type in a room name and you can use it!</div>
+            <div class="chat-message">There really are infinite chatrooms but here are some good ones:</div>
+            <div class="popular-rooms">
+               <a href="/rooms/general">
+                  <div class="popular-room-button">General Chat</div>
+               </a>
+               <a href="/rooms/gaming">
+                  <div class="popular-room-button">Gaming Chat</div>
+               </a>
+               <a href="/rooms/music">
+                  <div class="popular-room-button">Music Lounge</div>
+               </a>
+               <a href="/rooms/study-group">
+                  <div class="popular-room-button">Study Group</div>
+               </a>
+               <a href="/rooms/xbox">
+                  <div class="popular-room-button">Xbox Chat</div>
+               </a>
+               <a href="/rooms/playstation">
+                  <div class="popular-room-button">PlayStation Chat</div>
+               </a>
+               <div class="chat-message">If you don't really like these groups, you can choose a chatroom name and jump right in with your classmates or your friends!</div>
+               <div class="chat-message">There are two types of chatrooms: Persistent and Disappearing</div>
+               <div class="chat-message">                 Persistent means the messages stay forever unless deleted by the sender.</div>
+               <div class="chat-message">Disappearing means the messages will eventually disappear over some time automatically.</div>
+               <div class="chat-message">Type your custom chatroom name in here:</div>
+               <input type="text" id="roomInput" placeholder="Type your roon name and press enter...">
+            </div>
          </div>
       </div>
-     
-      <script src="/cdn/js/chatlink.js"></script>
-      <script type="module">
-         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-         
-         const supabaseUrl = 'https://htggqorlmkydneyelrfb.supabase.co';
-         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0Z2dxb3JsbWt5ZG5leWVscmZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU3MTA3ODIsImV4cCI6MjA2MTI4Njc4Mn0.y-T8vB3vAnDXEXytpYL7vn02wPh-vrR7_0oSYQb5tTM';
-         const supabase = createClient(supabaseUrl, supabaseKey);
-         
-         const messagesContainer = document.getElementById('messages');
-         const messageInput = document.getElementById('messageInput');
-         const sendButton = document.getElementById('sendButton');
-         
-         sendButton.addEventListener('click', () => bcMessage(supabase));
-         messageInput.addEventListener('keypress', (e) => {
-           if (e.key === 'Enter') bcMessage(supabase);
+      <script>
+         const roomInput = document.getElementById('roomInput');
+         roomInput.addEventListener('keypress', (e) => {
+         if (e.key === 'Enter') {
+         const roomName = roomInput.value.trim();
+         if (roomName) {
+           window.location.href = `/rooms/${encodeURIComponent(roomName)}`;
+         }
+         }
          });
-         
-         
-         startRealtime(supabase);
-         loadPriorMessages(supabase);
       </script>
    </body>
 </html>
