@@ -49,6 +49,7 @@ body {
      border-radius: 20px;
      border: 1px solid #ccc;
      margin-right: 10px;
+     margin-left: 10px;
 }
  .chat-input button {
      background-color: #007bff;
