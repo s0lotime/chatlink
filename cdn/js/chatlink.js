@@ -6,11 +6,11 @@ function receiveMessage(content) {
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-async function loadPriorMessages() {
+async function loadPriorMessages(supabaseVar) {
 	const {
 		data,
 		error
-	} = await supabase.from('messages')
+	} = await supabaseVar.from('messages')
 		.select('*')
 		.order('sent_at', {
 			ascending: true
@@ -33,12 +33,12 @@ function convertUrlsToLinks(text) {
 		return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
 	});
 }
-async function bcMessage() {
+async function bcMessage(supabaseVar) {
 	const content = messageInput.value.trim();
 	if (!content) return;
 	const {
 		error
-	} = await supabase.from('messages')
+	} = await supabaseVar.from('messages')
 		.insert([{
 			content,
 			room: "what"
@@ -50,9 +50,9 @@ async function bcMessage() {
 	}
 }
 
-async function startRealtime() {
+async function startRealtime(supabaseVar) {
 	try {
-		await supabase.channel('public:messages')
+		await supabaseVar.channel('public:messages')
 			.on('postgres_changes', {
 				event: 'INSERT',
 				schema: 'public',
