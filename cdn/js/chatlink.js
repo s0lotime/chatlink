@@ -1,20 +1,20 @@
 function receiveMessage(content) {
+	const messagesContainer = document.getElementById('messages');
+	const messageInput = document.getElementById('messageInput');
+	const sendButton = document.getElementById('sendButton');
 	const msg = document.createElement('div');
 	msg.className = 'chat-message';
 	msg.innerHTML = convertUrlsToLinks(content);
 	messagesContainer.appendChild(msg);
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
-
 async function loadPriorMessages(supabaseVar) {
 	const {
 		data,
 		error
-	} = await supabaseVar.from('messages')
-		.select('*')
-		.order('sent_at', {
-			ascending: true
-		});
+	} = await supabaseVar.from('messages').select('*').order('sent_at', {
+		ascending: true
+	});
 	if (error) {
 		console.error('Error loading messages:', error);
 		return;
@@ -34,34 +34,33 @@ function convertUrlsToLinks(text) {
 	});
 }
 async function bcMessage(supabaseVar) {
+	const messagesContainer = document.getElementById('messages');
+	const messageInput = document.getElementById('messageInput');
+	const sendButton = document.getElementById('sendButton');
 	const content = messageInput.value.trim();
 	if (!content) return;
 	const {
 		error
-	} = await supabaseVar.from('messages')
-		.insert([{
-			content,
-			room: "what"
-		}]);
+	} = await supabaseVar.from('messages').insert([{
+		content,
+		room: "what"
+	}]);
 	if (error) {
 		console.error('Error sending message:', error);
 	} else {
 		messageInput.value = '';
 	}
 }
-
 async function startRealtime(supabaseVar) {
 	try {
-		await supabaseVar.channel('public:messages')
-			.on('postgres_changes', {
-				event: 'INSERT',
-				schema: 'public',
-				table: 'messages'
-			}, (payload) => {
-				console.log('New message!', payload.new);
-				receiveMessage(payload.new.content || JSON.stringify(payload.new));
-			})
-			.subscribe();
+		await supabaseVar.channel('public:messages').on('postgres_changes', {
+			event: 'INSERT',
+			schema: 'public',
+			table: 'messages'
+		}, (payload) => {
+			console.log('New message!', payload.new);
+			receiveMessage(payload.new.content || JSON.stringify(payload.new));
+		}).subscribe();
 		console.log("connected");
 	} catch (error) {
 		console.error("non connect", error);
