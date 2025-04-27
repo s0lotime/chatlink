@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatLink - Supabase Realtime</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to top right, #a0e3f0, #d0f0c0);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .chat-wrapper {
+      width: 300%;
+      max-width: 900px;
+      height: 90vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-container {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      overflow-y: scroll;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-message {
+      background: linear-gradient(135deg, #b7f0e7, #e0f7fa);
+      border-radius: 15px;
+      padding: 10px 15px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      word-wrap: break-word;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      animation: popIn 0.3s ease forwards;
+    }
+
+    .chat-input {
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input input {
+      flex: 1;
+      padding: 10px 15px;
+      border-radius: 15px;
+      border: none;
+      outline: none;
+      background: rgba(255, 255, 255, 0.6);
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+    }
+
+    .chat-input button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 15px;
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+      transition: background 0.3s ease;
+    }
+
+    .chat-input button:hover {
+      background: linear-gradient(135deg, #0072ff, #00c6ff);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .chat-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    .chat-container::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .chat-container::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 128, 128, 0.6);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chat-wrapper">
+    <div class="chat-container" id="messages">
+      <!-- Messages will appear here -->
+    </div>
+
+    <div class="chat-input">
+      <input type="text" id="messageInput" placeholder="Type your message..." />
+      <button id="sendButton">Send</button>
+    </div>
+  </div>
+
+  <script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+  const supabaseUrl = 'https://htggqorlmkydneyelrfb.supabase.co';
+  const supabaseKey = 'your_supabase_key_here';
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const messagesContainer = document.getElementById('messages');
+  const messageInput = document.getElementById('messageInput');
+  const sendButton = document.getElementById('sendButton');
+
+  function addMessage(content) {
+    const msg = document.createElement('div');
+    msg.className = 'chat-message';
+    
+    // Convert URLs to clickable links
+    msg.innerHTML = convertUrlsToLinks(content);
+
+    messagesContainer.appendChild(msg);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  function convertUrlsToLinks(text) {
+    // Regex pattern to match URLs (http, https, www, or domain.com)
+    const urlPattern = /(\b(?:https?|ftp):\/\/[^\s/$.?#].[^\s]*)|(\b(?:www\.)[^\s/$.?#].[^\s]*)|(\b[^\s]+\.[a-z]{2,}\b)/gi;
+    return text.replace(urlPattern, (url) => {
+      // If URL starts with "www", add "https://" to make it a full URL
+      if (url.startsWith('www')) {
+        url = 'https://' + url;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+  }
+
+  async function loadMessages() {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('sent_at', { ascending: true }); // oldest to newest
+
+    if (error) {
+      console.error('Error loading messages:', error);
+      return;
+    }
+
+    data.forEach(msg => {
+      addMessage(msg.content);
+    });
+  }
+
+  async function sendMessage() {
+    const content = messageInput.value.trim();
+    if (!content) return;
+
+    const { error } = await supabase
+      .from('messages')
+      .insert([{ content, room: "what" }]);
+
+    if (error) {
+      console.error('Error sending message:', error);
+    } else {
+      messageInput.value = '';
+    }
+  }
+
+  sendButton.addEventListener('click', sendMessage);
+  messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  // Listen for new realtime messages
+  supabase
+    .channel('public:messages')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      console.log('New message!', payload.new);
+      addMessage(payload.new.content || JSON.stringify(payload.new));
+    })
+    .subscribe();
+
+  // Load all existing messages on page load
+  loadMessages();
+</script>
+
+
+</body>
+</html>
