@@ -18,6 +18,7 @@
     </div>
   </div>
 
+  <script src="/cdn/js/chatlink.js"></script>
   <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -28,8 +29,7 @@
   const messagesContainer = document.getElementById('messages');
   const messageInput = document.getElementById('messageInput');
   const sendButton = document.getElementById('sendButton');
-
-  <script src="/cdn/js/chatlink.js"></script>
+    
   sendButton.addEventListener('click', bcMessage);
   messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') bcMessage();
