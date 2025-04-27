@@ -8,11 +8,11 @@ function receiveMessage(content) {
 	messagesContainer.appendChild(msg);
 	messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
-async function loadPriorMessages(supabaseVar) {
+async function loadPriorMessages(supabaseVar, room) {
 	const {
 		data,
 		error
-	} = await supabaseVar.from('messages').select('*').order('sent_at', {
+	} = await supabaseVar.from('messages').select(room).order('sent_at', {
 		ascending: true
 	});
 	if (error) {
@@ -33,7 +33,7 @@ function convertUrlsToLinks(text) {
 		return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
 	});
 }
-async function bcMessage(supabaseVar) {
+async function bcMessage(supabaseVar, room) {
 	const messagesContainer = document.getElementById('messages');
 	const messageInput = document.getElementById('messageInput');
 	const sendButton = document.getElementById('sendButton');
@@ -43,7 +43,7 @@ async function bcMessage(supabaseVar) {
 		error
 	} = await supabaseVar.from('messages').insert([{
 		content,
-		room: "what"
+		room
 	}]);
 	if (error) {
 		console.error('Error sending message:', error);
