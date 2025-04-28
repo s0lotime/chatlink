@@ -16,7 +16,8 @@ function extractFirstUrl(text) {
     return matches ? matches[0] : null;
 }
 
-async function receiveMessage(content) {
+let unread = 0
+async function receiveMessage(content, roomName) {
     const messagesContainer = document.getElementById('messages');
     const msg = document.createElement('div');
     msg.className = 'chat-message';
@@ -30,6 +31,9 @@ async function receiveMessage(content) {
     if (document.visibilityState !== 'visible') {
         const notifAudio = new Audio('/cdn/media/receivednotif.mp3')
         notifAudio.play();
+
+        unread += 1;
+        document.title = `(${unread}) Chatlink - ${roomName}`;
     }
 
     if (firstUrl && await isImage(firstUrl)) {
@@ -71,11 +75,11 @@ async function loadPriorMessages(roomName) {
         const responseData = await response.json();
 
         if (responseData.length === 0) {
-            receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+            receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!", roomName);
         }
 
         for (const msg of responseData) {
-            await receiveMessage(msg.content);
+            await receiveMessage(msg.content, roomName);
         }
     } catch (error) {
         console.error('Error loading messages:', error);
