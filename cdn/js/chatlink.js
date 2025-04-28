@@ -29,7 +29,7 @@ async function receiveMessage(content) {
 
     if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
-        msg.innerHTML = `
+        msg.innerHTML = 
             <div class="chat-message">${realText}</div>
             <img 
                 src="${firstUrl}" 
@@ -37,17 +37,45 @@ async function receiveMessage(content) {
                 class="image-message" 
                 onerror="this.onerror=null; this.src='/cdn/images/error.png';"
             >
-        `;
+        ;
     } else if (firstUrl && isAudio(firstUrl)) {
         msg.className = 'audio-message';
-        msg.innerHTML = `
+        msg.innerHTML = 
             <div class="chat-message">${realText}</div>
             <audio controls>
                 <source src="${firstUrl}" type="audio/mpeg">
                 Your browser does not support the audio element.
             </audio>
-        `;
+        ;
     }
+}
+
+async function loadPriorMessages(roomName) {
+  try {
+    const response = await fetch(https://api.chatlink.sillyahhblud.space/messages/room/${roomName}, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch prior messages');
+    }
+
+    const responseData = await response.json();
+    
+    if (responseData.length === 0) {
+      receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+    }
+
+    for (const msg of responseData) {
+      await receiveMessage(msg.content);
+    }
+
+  } catch (error) {
+    console.error('Error loading messages:', error);
+  }
 }
 
 function convertUrlsToLinks(text) {
@@ -56,7 +84,7 @@ function convertUrlsToLinks(text) {
         if (url.startsWith('www')) {
             url = 'https://' + url;
         }
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        return <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>;
     });
 }
 
@@ -89,7 +117,7 @@ async function bcMessage(supabaseVar, room) {
 
         if (!response.ok) {
             const errorMessage = await response.text();
-            alert(`Error: ${errorMessage}`);
+            alert(Error: ${errorMessage});
             return;
         }
 
