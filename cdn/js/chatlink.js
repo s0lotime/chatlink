@@ -1,8 +1,28 @@
+//async function isImage(url) {
+    //const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
+    //const lowerUrl = url.toLowerCase();
+    //return imageExtensions.some(ext => lowerUrl.endsWith(ext));
+//}
+
 async function isImage(url) {
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
-    const lowerUrl = url.toLowerCase();
-    return imageExtensions.some(ext => lowerUrl.endsWith(ext));
+    try {
+        // Perform a head request to avoid downloading the entire file
+        const response = await fetch(url, { method: 'HEAD' });
+        
+        // Check if the response's Content-Type is an image
+        const contentType = response.headers.get('Content-Type');
+        
+        if (contentType && contentType.startsWith('image/')) {
+            return true; // It's an image
+        }
+        
+        return false; // Not an image
+    } catch (error) {
+        console.error('Error checking if URL is an image:', error);
+        return false;
+    }
 }
+
 
 function isAudio(url) {
     const audioExtensions = ['.mp3', '.ogg', '.wav'];
