@@ -80,6 +80,10 @@ async function receiveMessage(content, roomName) {
             </audio>
         `;
     }
+
+    msg.innerHTML = `
+            <div class="chat-message">${realText}</div>
+        `;
 }
 
 document.addEventListener('visibilitychange', function() {
