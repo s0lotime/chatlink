@@ -27,6 +27,11 @@ async function receiveMessage(content) {
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
 
+    if (document.visibilityState === 'visible') {
+        const notifAudio = new Audio('/cdn/media/receivednotif.mp3')
+        notifAudio.play();
+    }
+
     if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
