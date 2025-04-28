@@ -59,6 +59,13 @@ async function receiveMessage(content, roomName) {
     }
 }
 
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        unread = 0
+        document.title = `Chatlink`;
+    }
+});
+
 async function loadPriorMessages(roomName) {
     try {
         const response = await fetch(`https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`, {
