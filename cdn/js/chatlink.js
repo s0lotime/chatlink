@@ -64,7 +64,7 @@ async function loadMessages(limit = 50, beforeId = null) {
   isLoading = true;
 
   try {
-    let url = new URL(`https://api.chatlink.sillyahhblud.space/messages/room/${requestedRoom}`);
+    let url = new URL(`https://api.chatlink.sillyahhblud.space/messages/room/mateo`);
     url.searchParams.append('limit', limit);
     if (beforeId) {
       url.searchParams.append('before', beforeId);
