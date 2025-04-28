@@ -57,7 +57,7 @@ let isLoading = false;  // To prevent multiple simultaneous loads
 const urlParams = new URLSearchParams(window.location.search);
 const limit = parseInt(urlParams.get('limit')) || 20;
 
-async function loadMessages(limit = 20, beforeId = null) {
+async function loadMessages(limit = 50, beforeId = null) {
   const messagesContainer = document.getElementById('messages');
   
   if (isLoading) return; // Prevent fetching while already loading
