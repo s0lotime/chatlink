@@ -1,34 +1,35 @@
-//async function isImage(url) {
-    //const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
-    //const lowerUrl = url.toLowerCase();
-    //return imageExtensions.some(ext => lowerUrl.endsWith(ext));
-//}
-
 async function isImage(url) {
     try {
-        // Perform a head request to avoid downloading the entire file
         const response = await fetch(url, { method: 'HEAD' });
-        
-        // Check if the response's Content-Type is an image
         const contentType = response.headers.get('Content-Type');
         
         if (contentType && contentType.startsWith('image/')) {
-            return true; // It's an image
+            return true;
         }
         
-        return false; // Not an image
+        return false;
     } catch (error) {
-        console.error('Error checking if URL is an image:', error);
+        console.error('error check img', error);
         return false;
     }
 }
 
-
-function isAudio(url) {
-    const audioExtensions = ['.mp3', '.ogg', '.wav'];
-    const lowerUrl = url.toLowerCase();
-    return audioExtensions.some(ext => lowerUrl.endsWith(ext));
+async function isAudio(url) {
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const contentType = response.headers.get('Content-Type');
+        
+        if (contentType && contentType.startsWith('audio/')) {
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('error check audio', error);
+        return false;
+    }
 }
+
 
 function extractFirstUrl(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
