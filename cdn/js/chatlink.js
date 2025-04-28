@@ -20,7 +20,7 @@ async function isAudio(url) {
         const contentType = response.headers.get('Content-Type');
         
         if (contentType && contentType.startsWith('audio/')) {
-            return true;
+            return true, contentType;
         }
         
         return false;
