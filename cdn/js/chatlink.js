@@ -17,6 +17,7 @@ function extractFirstUrl(text) {
 }
 
 let unread = 0
+let roomNameVar
 async function receiveMessage(content, roomName) {
     const messagesContainer = document.getElementById('messages');
     const msg = document.createElement('div');
@@ -27,6 +28,7 @@ async function receiveMessage(content, roomName) {
 
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
+    roomNameVar = roomName
 
     if (document.visibilityState !== 'visible') {
         const notifAudio = new Audio('/cdn/media/receivednotif.mp3')
@@ -62,7 +64,7 @@ async function receiveMessage(content, roomName) {
 document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
         unread = 0
-        document.title = `Chatlink`;
+        document.title = `Chatlink - ${roomNameVar}`;
     }
 });
 
@@ -141,14 +143,14 @@ async function bcMessage(supabaseVar, room) {
     }
 }
 
-async function startRealtime(supabaseVar) {
+async function startRealtime(supabaseVar, roomName) {
     try {
         await supabaseVar.channel('public:messages').on('postgres_changes', {
             event: 'INSERT',
             schema: 'public',
             table: 'messages',
         }, (payload) => {
-            receiveMessage(payload.new.content || JSON.stringify(payload.new));
+            receiveMessage(payload.new.content || JSON.stringify(payload.new), roomName);
         }).subscribe();
         console.log("connected");
     } catch (error) {
