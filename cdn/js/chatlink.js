@@ -1,13 +1,7 @@
 async function isImage(url) {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg', '.heif'];
     const lowerUrl = url.toLowerCase();
-
-    const hasImageExtension = imageExtensions.some(ext => lowerUrl.endsWith(ext));
-    if (!hasImageExtension) {
-        return false;
-    }
-
-    return true;
+    return imageExtensions.some(ext => lowerUrl.endsWith(ext));
 }
 
 function isAudio(url) {
@@ -27,6 +21,7 @@ async function receiveMessage(content) {
     const msg = document.createElement('div');
     msg.className = 'chat-message';
     msg.innerHTML = convertUrlsToLinks(content);
+    messagesContainer.appendChild(msg);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
@@ -52,72 +47,35 @@ async function receiveMessage(content) {
                 Your browser does not support the audio element.
             </audio>
         `;
-    } else {
-        msg.innerHTML = convertUrlsToLinks(content);
     }
-
-    messagesContainer.appendChild(msg);
 }
 
-let oldestMessageId = null;
-let isLoading = false;
-let allMessagesLoaded = false;
+async function loadPriorMessages(roomName) {
+  try {
+    const response = await fetch(`https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-async function loadPriorMessages(roomName, initialLoad = false) {
-    if (isLoading || allMessagesLoaded) return;
-
-    isLoading = true;
-    try {
-        let url = `https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`;
-        if (oldestMessageId && !initialLoad) {
-            url += `?before=${oldestMessageId}`;
-        }
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch prior messages');
-        }
-
-        const responseData = await response.json();
-
-        if (responseData.length === 0) {
-            if (initialLoad) {
-                receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
-            }
-            allMessagesLoaded = true;
-            return;
-        }
-
-        const messagesContainer = document.getElementById('messages');
-        const scrollBefore = messagesContainer.scrollHeight;
-
-        for (let i = responseData.length - 1; i >= 0; i--) {
-            const message = responseData[i];
-            const msg = document.createElement('div');
-            msg.className = 'chat-message';
-            msg.innerHTML = convertUrlsToLinks(message.content);
-            messagesContainer.insertBefore(msg, messagesContainer.firstChild);
-
-            oldestMessageId = message.id;
-        }
-
-        const scrollAfter = messagesContainer.scrollHeight;
-        messagesContainer.scrollTop += (scrollAfter - scrollBefore);
-
-        if (initialLoad) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-    } catch (error) {
-        console.error('Error loading messages:', error);
-    } finally {
-        isLoading = false;
+    if (!response.ok) {
+      throw new Error('Failed to fetch prior messages');
     }
+
+    const responseData = await response.json();
+    
+    if (responseData.length === 0) {
+      receiveMessage("It seems like there are no previous messages in this chatroom. Start the conversation!");
+    }
+
+    for (const msg of responseData) {
+      await receiveMessage(msg.content);
+    }
+
+  } catch (error) {
+    console.error('Error loading messages:', error);
+  }
 }
 
 function convertUrlsToLinks(text) {
@@ -188,16 +146,3 @@ async function startRealtime(supabaseVar) {
         console.error("Connection failed", error);
     }
 }
-
-// Add lazy loading on scroll:
-const messagesContainer = document.getElementById('messages');
-
-messagesContainer.addEventListener('scroll', async () => {
-    if (messagesContainer.scrollTop < 50) {
-        await loadPriorMessages('${requestedRoom}');
-    }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    loadPriorMessages('${requestedRoom}', true);
-});
