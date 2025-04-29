@@ -108,6 +108,12 @@ async function receiveMessage(content, roomName) {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
         `;
+    } else if (firstUrl && await returnContentType(firstUrl) === 'application/pdf') {
+    msg.className = 'pdf-message';
+    msg.innerHTML = `
+        <div class="chat-message">${realText}</div>
+        <iframe src="${firstUrl}" width="100%" height="500px" style="border: none;"></iframe>
+    `;
 }
 }
 
