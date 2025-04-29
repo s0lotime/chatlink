@@ -64,6 +64,7 @@ async function receiveMessage(content, roomName) {
 
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
+    if (!firstUrl) return;
     roomNameVar = roomName
 
     if (document.visibilityState !== 'visible') {
