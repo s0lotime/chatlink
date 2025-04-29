@@ -94,7 +94,7 @@ async function receiveMessage(content, roomName) {
                 Your browser does not support the audio element.
             </audio>
         `;
-    } else if (firstUrl && await returnContentType(firstURL) === 'text/html') {
+    } else if (firstUrl && await returnContentType(firstUrl) === 'text/html') {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
         `;
