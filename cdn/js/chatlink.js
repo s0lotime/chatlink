@@ -86,7 +86,7 @@ async function receiveMessage(content, roomName) {
                 onerror="this.onerror=null; this.src='/cdn/images/error.png';"
             >
         `;
-    } else if (firstUrl && await isAudio(firstUrl)) {
+    } else if (firstUrl && typeof contentType === 'string' && contentType.startsWith('audio/')) {
         msg.className = 'audio-message';
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
@@ -95,7 +95,7 @@ async function receiveMessage(content, roomName) {
                 Your browser does not support the audio element.
             </audio>
         `;
-    } else if (firstUrl && await returnContentType(firstUrl) === 'text/html') {
+    } else if (firstUrl && typeof contentType === 'string' && contentType === 'text/html') {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
         `;
