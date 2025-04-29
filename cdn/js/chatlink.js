@@ -98,15 +98,6 @@ async function receiveMessage(content, roomName) {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
         `;
-    } else if (firstUrl && await returnContentType(firstUrl).startsWith('video/')) {
-    msg.className = 'video-message';
-    msg.innerHTML = `
-        <div class="chat-message">${realText}</div>
-        <video controls width="300">
-            <source src="${firstUrl}" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
-    `;
 }
 }
 
