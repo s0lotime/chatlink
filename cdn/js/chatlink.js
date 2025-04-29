@@ -1,12 +1,44 @@
+async function isImage(url) {
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const contentType = response.headers.get('Content-Type');
+        
+        if (contentType && contentType.startsWith('image/')) {
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('error check img', error);
+        return false;
+    }
+}
+
+async function isAudio(url) {
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const contentType = response.headers.get('Content-Type');
+        
+        if (contentType && contentType.startsWith('audio/')) {
+            return true, contentType;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('error check audio', error);
+        return false;
+    }
+}
+
 async function returnContentType(url) {
     try {
         const response = await fetch(url, { method: 'HEAD' });
         const contentType = response.headers.get('Content-Type');
-
+        
         if (contentType) {
             return contentType;
         }
-
+        
         return null;
     } catch (error) {
         console.error('error check audio', error);
@@ -20,9 +52,8 @@ function extractFirstUrl(text) {
     return matches ? matches[0] : null;
 }
 
-let unread = 0;
-let roomNameVar;
-
+let unread = 0
+let roomNameVar
 async function receiveMessage(content, roomName) {
     const messagesContainer = document.getElementById('messages');
     const msg = document.createElement('div');
@@ -33,19 +64,17 @@ async function receiveMessage(content, roomName) {
 
     const realText = content.replace(/https?:\/\/[^\s]+/g, '').trim();
     const firstUrl = extractFirstUrl(content);
-    roomNameVar = roomName;
+    roomNameVar = roomName
 
     if (document.visibilityState !== 'visible') {
-        const notifAudio = new Audio('/cdn/media/receivednotif.mp3');
+        const notifAudio = new Audio('/cdn/media/receivednotif.mp3')
         notifAudio.play();
 
         unread += 1;
         document.title = `(${unread}) Chatlink - ${roomName}`;
     }
 
-    const contentType = firstUrl ? await returnContentType(firstUrl) : null;
-
-    if (firstUrl && contentType === 'image/') {
+    if (firstUrl && await isImage(firstUrl)) {
         msg.className = 'image-message';
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
@@ -56,7 +85,7 @@ async function receiveMessage(content, roomName) {
                 onerror="this.onerror=null; this.src='/cdn/images/error.png';"
             >
         `;
-    } else if (firstUrl && contentType === 'audio/') {
+    } else if (firstUrl && await isAudio(firstUrl)) {
         msg.className = 'audio-message';
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
@@ -65,25 +94,16 @@ async function receiveMessage(content, roomName) {
                 Your browser does not support the audio element.
             </audio>
         `;
-    } else if (firstUrl && contentType.startsWith('video/')) {
-        msg.className = 'video-message';
-        msg.innerHTML = `
-            <div class="chat-message">${realText}</div>
-            <video controls width="300">
-                <source src="${firstUrl}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-        `;
-    } else if (firstUrl && contentType === 'text/html') {
+    } else if (firstUrl && await returnContentType(firstUrl) === 'text/html') {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
         `;
     }
 }
 
-document.addEventListener('visibilitychange', function () {
+document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
-        unread = 0;
+        unread = 0
         document.title = `Chatlink - ${roomNameVar}`;
     }
 });
@@ -152,7 +172,7 @@ async function bcMessage(supabaseVar, room) {
             return;
         }
 
-        await response.json();
+        const responseData = await response.json();
         messageInput.value = '';
     } catch (error) {
         console.error('Error sending message:', error);
@@ -165,16 +185,13 @@ async function bcMessage(supabaseVar, room) {
 
 async function startRealtime(supabaseVar, roomName) {
     try {
-        await supabaseVar
-            .channel('public:messages')
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-            }, (payload) => {
-                receiveMessage(payload.new.content || JSON.stringify(payload.new), roomName);
-            })
-            .subscribe();
+        await supabaseVar.channel('public:messages').on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+        }, (payload) => {
+            receiveMessage(payload.new.content || JSON.stringify(payload.new), roomName);
+        }).subscribe();
         console.log("connected");
     } catch (error) {
         console.error("Connection failed", error);
