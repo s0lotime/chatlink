@@ -34,6 +34,7 @@ async function returnContentType(url) {
     try {
         const response = await fetch(url, { method: 'HEAD' });
         const contentType = response.headers.get('Content-Type');
+        console.log(response);
         
         if (contentType) {
             return contentType;
