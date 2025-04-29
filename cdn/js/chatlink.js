@@ -175,7 +175,7 @@ async function bcMessage(supabaseVar, room) {
     const requestBody = { content, room };
 
     try {
-        const response = await fetch('https://api.chatlink.sillyahhblud.space/messages/', {
+        const response = await fetch('https://api.chatlink.space/messages/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
