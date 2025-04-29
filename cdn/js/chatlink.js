@@ -95,6 +95,15 @@ async function receiveMessage(content, roomName) {
                 Your browser does not support the audio element.
             </audio>
         `;
+    } else if (firstUrl && typeof contentType === 'string' && contentType.startsWith('video/')) {
+        msg.className = 'video-message';
+        msg.innerHTML = `
+            <div class="chat-message">${realText}</div>
+            <video controls width="300">
+                <source src="${firstUrl}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        `;
     } else if (firstUrl && typeof contentType === 'string' && contentType === 'text/html') {
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
