@@ -30,6 +30,21 @@ async function isAudio(url) {
     }
 }
 
+async function returnContentType(url) {
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const contentType = response.headers.get('Content-Type');
+        
+        if (contentType) {
+            return contentType;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('error check audio', error);
+        return false;
+    }
+}
 
 function extractFirstUrl(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -78,6 +93,10 @@ async function receiveMessage(content, roomName) {
                 <source src="${firstUrl}" type="audio/mpeg">
                 Your browser does not support the audio element.
             </audio>
+        `;
+    } else if (firstUrl && returnContentType(firstURL) === 'text/html') {
+        msg.innerHTML = `
+            <div class="chat-message">${realText}</div>
         `;
     }
 }
