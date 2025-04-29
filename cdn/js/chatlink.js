@@ -126,7 +126,7 @@ document.addEventListener('visibilitychange', function() {
 
 async function loadPriorMessages(roomName) {
     try {
-        const response = await fetch(`https://api.chatlink.sillyahhblud.space/messages/room/${roomName}`, {
+        const response = await fetch(`https://api.chatlink.space/messages/room/${roomName}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
