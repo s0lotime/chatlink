@@ -74,7 +74,8 @@ async function receiveMessage(content, roomName) {
         document.title = `(${unread}) Chatlink - ${roomName}`;
     }
 
-    if (firstUrl && await returnContentType(firstUrl).startsWith('image/')) {
+    const contentType = await returnContentType(firstUrl);
+    if (firstUrl && typeof contentType === 'string' && contentType.startsWith('image/')) {
         msg.className = 'image-message';
         msg.innerHTML = `
             <div class="chat-message">${realText}</div>
