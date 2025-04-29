@@ -1,35 +1,3 @@
-async function isImage(url) {
-    try {
-        const response = await fetch(url, { method: 'HEAD' });
-        const contentType = response.headers.get('Content-Type');
-        
-        if (contentType && contentType.startsWith('image/')) {
-            return true;
-        }
-        
-        return false;
-    } catch (error) {
-        console.error('error check img', error);
-        return false;
-    }
-}
-
-async function isAudio(url) {
-    try {
-        const response = await fetch(url, { method: 'HEAD' });
-        const contentType = response.headers.get('Content-Type');
-        
-        if (contentType && contentType.startsWith('audio/')) {
-            return true, contentType;
-        }
-        
-        return false;
-    } catch (error) {
-        console.error('error check audio', error);
-        return false;
-    }
-}
-
 async function returnContentType(url) {
     try {
         const response = await fetch(url, { method: 'HEAD' });
@@ -42,7 +10,7 @@ async function returnContentType(url) {
         
         return null;
     } catch (error) {
-        console.error('error check audio', error);
+        console.error('error check content type', error);
         return false;
     }
 }
@@ -76,7 +44,7 @@ async function receiveMessage(content, roomName) {
         document.title = `(${unread}) Chatlink - ${roomName}`;
     }
 
-    const contentType = await returnContentType(firstUrl);
+    const contentType = await (firstUrl);
     if (firstUrl && typeof contentType === 'string' && contentType.startsWith('image/')) {
         msg.className = 'image-message';
         msg.innerHTML = `
