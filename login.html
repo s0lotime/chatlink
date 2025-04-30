@@ -133,13 +133,12 @@
       const result = await response.json();
 
       if (response.ok && result.success) {
-        message.textContent = "✅ Logged in successfully!";
+        message.textContent = "Logged in!";
         message.style.color = "#006400";
         loginBtn.textContent = "Success";
-        // Redirect after a short delay
         setTimeout(() => {
           window.location.href = "https://chatlink.space/";
-        }, 1000);
+        }, 700);
       } else {
         message.textContent = result.status || "Login failed.";
         loginBtn.textContent = "Login";
