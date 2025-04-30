@@ -1,58 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>WebRTC Video Call (Manual)</title>
-  <style>
-    video {
-      width: 45%;
-      height: auto;
-      margin: 5px;
-      border: 2px solid #ccc;
-    }
-    textarea {
-      width: 100%;
-      height: 150px;
-      margin-bottom: 10px;
-    }
-    button {
-      margin-right: 10px;
-      margin-bottom: 10px;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <title>WebRTC Call</title>
 </head>
 <body>
-  <h2>WebRTC Video Call (Manual Signaling)</h2>
-
+  <h2>WebRTC Video Call</h2>
   <video id="localVideo" autoplay muted playsinline></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
-  <div>
-    <button id="startCall">Create Offer</button>
-    <button id="receiveOffer">Receive Offer</button>
-    <button id="receiveAnswer">Receive Answer</button>
-  </div>
-
-  <h3>Local SDP (Offer/Answer)</h3>
-  <textarea id="localSDP" readonly></textarea>
-
-  <h3>Remote SDP (Paste here)</h3>
-  <textarea id="remoteSDP"></textarea>
+  <button id="start">Start Call</button>
 
   <script>
-    const startCallBtn = document.getElementById("startCall");
-    const receiveOfferBtn = document.getElementById("receiveOffer");
-    const receiveAnswerBtn = document.getElementById("receiveAnswer");
-    const localSDP = document.getElementById("localSDP");
-    const remoteSDP = document.getElementById("remoteSDP");
+    const callId = new URLSearchParams(location.search).get("call");
+    if (!callId) {
+      alert("Missing ?call=CALL_ID in URL");
+      throw new Error("Call ID required");
+    }
 
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
+    const ws = new WebSocket(`wss://api.chatlink.space/messagerouting/websocket/connection?call=${callId}`);
 
     let pc;
     let localStream;
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
 
-    async function setupConnection() {
+    ws.onmessage = async event => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "offer") {
+        await setup();
+        await pc.setRemoteDescription(new RTCSessionDescription(msg));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify(pc.localDescription));
+      } else if (msg.type === "answer") {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg));
+      } else if (msg.candidate) {
+        await pc.addIceCandidate(new RTCIceCandidate(msg));
+      }
+    };
+
+    async function setup() {
+      if (pc) return;
+
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
 
@@ -69,29 +60,17 @@
       };
 
       pc.onicecandidate = e => {
-        if (!e.candidate) {
-          localSDP.value = JSON.stringify(pc.localDescription);
+        if (e.candidate) {
+          ws.send(JSON.stringify({ candidate: e.candidate }));
         }
       };
     }
 
-    startCallBtn.onclick = async () => {
-      await setupConnection();
+    document.getElementById("start").onclick = async () => {
+      await setup();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-    };
-
-    receiveOfferBtn.onclick = async () => {
-      await setupConnection();
-      const offer = JSON.parse(remoteSDP.value);
-      await pc.setRemoteDescription(offer);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-    };
-
-    receiveAnswerBtn.onclick = async () => {
-      const answer = JSON.parse(remoteSDP.value);
-      await pc.setRemoteDescription(answer);
+      ws.send(JSON.stringify(offer));
     };
   </script>
 </body>
