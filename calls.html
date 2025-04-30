@@ -44,6 +44,8 @@
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
 
+    let iceCandidatesQueue = []; // Queue to store ICE candidates until the remote description is set
+
     // WebSocket message handler
     ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
@@ -63,7 +65,12 @@
         await pc.setRemoteDescription(new RTCSessionDescription(msg));
       } else if (msg.candidate) {
         console.log("Received ICE candidate...");
-        await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        // Queue the candidate if remote description is not set yet
+        if (pc.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        } else {
+          iceCandidatesQueue.push(msg.candidate);
+        }
       }
     };
 
@@ -105,6 +112,14 @@
           ws.send(JSON.stringify({ candidate: e.candidate }));
         }
       };
+
+      // Process any queued ICE candidates after setting the remote description
+      if (iceCandidatesQueue.length > 0) {
+        for (let candidate of iceCandidatesQueue) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+        iceCandidatesQueue = []; // Clear the queue after processing
+      }
     }
 
     // Start call button handler
