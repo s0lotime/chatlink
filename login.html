@@ -133,6 +133,7 @@
       const result = await response.json();
 
       if (response.ok && result.success) {
+        message.style.display = "block"
         message.textContent = "Logged in!";
         message.style.color = "#006400";
         loginBtn.textContent = "Success";
@@ -140,12 +141,14 @@
           window.location.href = "https://chatlink.space/";
         }, 700);
       } else {
-        message.textContent = result.status || "Login failed.";
+        message.style.display = "block"
+        message.textContent = "Login failed";
         loginBtn.textContent = "Login";
         loginBtn.disabled = false;
       }
 
     } catch (error) {
+      message.style.display = "block"
       message.textContent = "Network error. Please try again.";
       loginBtn.textContent = "Login";
       loginBtn.disabled = false;
