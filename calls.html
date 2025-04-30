@@ -2,10 +2,20 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>WebRTC Call</title>
+  <title>WebRTC Video Call</title>
   <style>
-    video { width: 45%; margin: 1%; border: 2px solid #ccc; border-radius: 8px; }
-    body { font-family: sans-serif; text-align: center; }
+    video {
+      width: 45%;
+      margin: 1%;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto;
+    }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -34,45 +44,70 @@
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
 
+    // WebSocket message handler
     ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
+
       if (!pc) await setup();
 
       if (msg.type === "offer") {
+        console.log("Received offer, setting remote description...");
         await pc.setRemoteDescription(new RTCSessionDescription(msg));
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await wsReady;
-        ws.send(JSON.stringify(pc.localDescription));
+        ws.send(JSON.stringify(answer));
       } else if (msg.type === "answer") {
+        console.log("Received answer, setting remote description...");
         await pc.setRemoteDescription(new RTCSessionDescription(msg));
       } else if (msg.candidate) {
+        console.log("Received ICE candidate...");
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       }
     };
 
+    // Setup WebRTC connection
     async function setup() {
-      if (pc) return;
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
+      if (pc) return; // Prevent re-initialization
 
+      console.log("Setting up WebRTC connection...");
+      // Get media stream
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+      } catch (err) {
+        console.error("Error accessing media devices.", err);
+        alert("Could not access media devices. Make sure you have granted permission.");
+        return;
+      }
+
+      // Initialize peer connection
       pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
 
-      pc.ontrack = e => {
-        remoteVideo.srcObject = e.streams[0];
+      // Handle receiving remote tracks
+      pc.ontrack = (event) => {
+        console.log("Track received:", event);
+        const remoteStream = event.streams[0];
+        remoteVideo.srcObject = remoteStream;
       };
 
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      // Add local tracks to the peer connection
+      localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+      });
 
-      pc.onicecandidate = e => {
+      // ICE Candidate handling
+      pc.onicecandidate = (e) => {
         if (e.candidate && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ candidate: e.candidate }));
         }
       };
     }
 
+    // Start call button handler
     document.getElementById("start").onclick = async () => {
       await setup();
       const offer = await pc.createOffer();
