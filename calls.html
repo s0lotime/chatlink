@@ -46,6 +46,8 @@
 
     let iceCandidatesQueue = []; // Queue to store ICE candidates until the remote description is set
 
+    let isOfferer = false; // Flag to track if the user is the offerer or answerer
+
     // WebSocket message handler
     ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
@@ -124,6 +126,13 @@
 
     // Start call button handler
     document.getElementById("start").onclick = async () => {
+      if (isOfferer) {
+        console.log("Already an offerer, not creating a new offer.");
+        return; // Avoid creating multiple offers
+      }
+
+      isOfferer = true; // Mark the user as the offerer
+
       await setup();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
