@@ -2,26 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>WebRTC Audio Call (Manual)</title>
+  <title>WebRTC Video Call (Manual)</title>
   <style>
-    textarea { width: 100%; height: 150px; margin-bottom: 10px; }
-    button { margin-right: 10px; }
+    video {
+      width: 45%;
+      height: auto;
+      margin: 5px;
+      border: 2px solid #ccc;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 10px;
+    }
+    button {
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
-  <h2>WebRTC Audio Call (Manual Signaling)</h2>
+  <h2>WebRTC Video Call (Manual Signaling)</h2>
 
-  <button id="startCall">Create Offer</button>
-  <button id="receiveOffer">Receive Offer</button>
-  <button id="receiveAnswer">Receive Answer</button>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-  <h3>Local SDP (Offer or Answer)</h3>
+  <div>
+    <button id="startCall">Create Offer</button>
+    <button id="receiveOffer">Receive Offer</button>
+    <button id="receiveAnswer">Receive Answer</button>
+  </div>
+
+  <h3>Local SDP (Offer/Answer)</h3>
   <textarea id="localSDP" readonly></textarea>
 
-  <h3>Remote SDP</h3>
+  <h3>Remote SDP (Paste here)</h3>
   <textarea id="remoteSDP"></textarea>
-
-  <audio id="remoteAudio" autoplay></audio>
 
   <script>
     const startCallBtn = document.getElementById("startCall");
@@ -29,18 +45,19 @@
     const receiveAnswerBtn = document.getElementById("receiveAnswer");
     const localSDP = document.getElementById("localSDP");
     const remoteSDP = document.getElementById("remoteSDP");
-    const remoteAudio = document.getElementById("remoteAudio");
+
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
 
     let pc;
     let localStream;
 
     async function setupConnection() {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
       pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }
-        ]
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
 
       localStream.getTracks().forEach(track => {
@@ -48,11 +65,11 @@
       });
 
       pc.ontrack = event => {
-        remoteAudio.srcObject = event.streams[0];
+        remoteVideo.srcObject = event.streams[0];
       };
 
       pc.onicecandidate = e => {
-        if (e.candidate === null) {
+        if (!e.candidate) {
           localSDP.value = JSON.stringify(pc.localDescription);
         }
       };
