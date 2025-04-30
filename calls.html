@@ -1,49 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>WebRTC Call</title>
+  <style>
+    video { width: 45%; margin: 1%; border: 2px solid #ccc; border-radius: 8px; }
+    body { font-family: sans-serif; text-align: center; }
+  </style>
 </head>
 <body>
   <h2>WebRTC Video Call</h2>
   <video id="localVideo" autoplay muted playsinline></video>
   <video id="remoteVideo" autoplay playsinline></video>
-
+  <br><br>
   <button id="start">Start Call</button>
 
   <script>
     const callId = new URLSearchParams(location.search).get("call");
     if (!callId) {
-      alert("Missing ?call=CALL_ID in URL");
-      throw new Error("Call ID required");
+      alert("Add ?call=CALLID to the URL");
+      throw new Error("Missing call ID");
     }
 
-    const ws = new WebSocket(`wss://chatlink.space/messagerouting/websocket/connection?call=${callId}`);
+    const ws = new WebSocket(`wss://${location.host}/messagerouting/websocket/connection?call=${callId}`);
+    let wsReady = new Promise(resolve => {
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        resolve();
+      };
+    });
 
-    let pc;
-    let localStream;
+    let pc, localStream;
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
 
-    ws.onmessage = async event => {
+    ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
+      if (!pc) await setup();
 
       if (msg.type === "offer") {
-        await setup();
         await pc.setRemoteDescription(new RTCSessionDescription(msg));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        await wsReady;
         ws.send(JSON.stringify(pc.localDescription));
       } else if (msg.type === "answer") {
         await pc.setRemoteDescription(new RTCSessionDescription(msg));
       } else if (msg.candidate) {
-        await pc.addIceCandidate(new RTCIceCandidate(msg));
+        await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
       }
     };
 
     async function setup() {
       if (pc) return;
-
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
 
@@ -51,16 +60,14 @@
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
 
-      localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream);
-      });
-
-      pc.ontrack = event => {
-        remoteVideo.srcObject = event.streams[0];
+      pc.ontrack = e => {
+        remoteVideo.srcObject = e.streams[0];
       };
 
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
       pc.onicecandidate = e => {
-        if (e.candidate) {
+        if (e.candidate && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ candidate: e.candidate }));
         }
       };
@@ -70,6 +77,7 @@
       await setup();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      await wsReady;
       ws.send(JSON.stringify(offer));
     };
   </script>
