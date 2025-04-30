@@ -96,7 +96,7 @@ document.addEventListener('visibilitychange', function() {
 
 async function loadPriorMessages(roomName) {
     try {
-        const response = await fetch(`https://api.chatlink.space/messages/room/${roomName}`, {
+        const response = await fetch(`https://chatlink.space/messages/room/${roomName}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -144,7 +144,7 @@ async function bcMessage(supabaseVar, room) {
     const requestBody = { content, room };
 
     try {
-        const response = await fetch('https://api.chatlink.space/messages/', {
+        const response = await fetch('https://chatlink.space/messages/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
