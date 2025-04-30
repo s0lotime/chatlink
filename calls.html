@@ -1,67 +1,80 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>WebRTC Video Call</title>
+  <meta charset="UTF-8">
+  <title>WebRTC Audio Call (Manual)</title>
   <style>
-    video { width: 45%; margin: 10px; }
+    textarea { width: 100%; height: 150px; margin-bottom: 10px; }
+    button { margin-right: 10px; }
   </style>
 </head>
 <body>
-  <h2>WebRTC Call</h2>
-  <video id="local" autoplay muted></video>
-  <video id="remote" autoplay></video>
+  <h2>WebRTC Audio Call (Manual Signaling)</h2>
+
+  <button id="startCall">Create Offer</button>
+  <button id="receiveOffer">Receive Offer</button>
+  <button id="receiveAnswer">Receive Answer</button>
+
+  <h3>Local SDP (Offer or Answer)</h3>
+  <textarea id="localSDP" readonly></textarea>
+
+  <h3>Remote SDP</h3>
+  <textarea id="remoteSDP"></textarea>
+
+  <audio id="remoteAudio" autoplay></audio>
 
   <script>
-    const localVideo = document.getElementById("local");
-    const remoteVideo = document.getElementById("remote");
-    const ws = new WebSocket("wss://api.chatlink.space/chatlinkws");
+    const startCallBtn = document.getElementById("startCall");
+    const receiveOfferBtn = document.getElementById("receiveOffer");
+    const receiveAnswerBtn = document.getElementById("receiveAnswer");
+    const localSDP = document.getElementById("localSDP");
+    const remoteSDP = document.getElementById("remoteSDP");
+    const remoteAudio = document.getElementById("remoteAudio");
 
+    let pc;
     let localStream;
-    const pc = new RTCPeerConnection();
 
-    ws.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
+    async function setupConnection() {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      if (message.offer) {
-        await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ answer }));
-      }
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
+      });
 
-      if (message.answer) {
-        await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
-      }
+      localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+      });
 
-      if (message.iceCandidate) {
-        try {
-          await pc.addIceCandidate(message.iceCandidate);
-        } catch (e) {
-          console.error("Error adding ICE candidate:", e);
+      pc.ontrack = event => {
+        remoteAudio.srcObject = event.streams[0];
+      };
+
+      pc.onicecandidate = e => {
+        if (e.candidate === null) {
+          localSDP.value = JSON.stringify(pc.localDescription);
         }
-      }
-    };
+      };
+    }
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(stream => {
-      localStream = stream;
-      localVideo.srcObject = stream;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-    });
-
-    pc.ontrack = (event) => {
-      remoteVideo.srcObject = event.streams[0];
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        ws.send(JSON.stringify({ iceCandidate: event.candidate }));
-      }
-    };
-
-    ws.onopen = async () => {
+    startCallBtn.onclick = async () => {
+      await setupConnection();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      ws.send(JSON.stringify({ offer }));
+    };
+
+    receiveOfferBtn.onclick = async () => {
+      await setupConnection();
+      const offer = JSON.parse(remoteSDP.value);
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+    };
+
+    receiveAnswerBtn.onclick = async () => {
+      const answer = JSON.parse(remoteSDP.value);
+      await pc.setRemoteDescription(answer);
     };
   </script>
 </body>
