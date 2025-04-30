@@ -18,7 +18,7 @@
       throw new Error("Call ID required");
     }
 
-    const ws = new WebSocket(`wss://api.chatlink.space/messagerouting/websocket/connection?call=${callId}`);
+    const ws = new WebSocket(`wss://chatlink.space/messagerouting/websocket/connection?call=${callId}`);
 
     let pc;
     let localStream;
