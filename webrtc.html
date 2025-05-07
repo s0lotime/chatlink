@@ -25,7 +25,7 @@
 
         let localStream;
         let pc;
-        const ws = new WebSocket('wss://chatlink.space/messagerouting/webrtc');
+        const ws = new WebSocket('wss://chatlink.space/messagerouting/webrtc?room=hi');
 
         ws.onmessage = async (event) => {
             const message = JSON.parse(event.data);
