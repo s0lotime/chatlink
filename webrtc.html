@@ -25,7 +25,16 @@
 
         let localStream;
         let pc;
-        const ws = new WebSocket('wss://chatlink.space/webrtc/test1');
+        const room = 'test1';
+        const ws = new WebSocket(`wss://chatlink.space/webrtc/${room}`);
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        ws.onerror = (err) => {
+            console.error('WebSocket error:', err);
+        };
 
         ws.onmessage = async (event) => {
             const message = JSON.parse(event.data);
@@ -37,7 +46,11 @@
             } else if (message.answer) {
                 await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
             } else if (message.candidate) {
-                await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+                } catch (e) {
+                    console.error('Error adding ICE candidate', e);
+                }
             }
         };
 
