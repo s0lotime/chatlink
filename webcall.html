@@ -1,85 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Simple WebRTC Call</title>
-    <style>
-        video { width: 45%; margin: 10px; border: 1px solid #ccc; }
-        button { margin: 5px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Chatlink WebRTC Room</title>
 </head>
 <body>
-    <h1>Simple WebRTC Call (Two Users)</h1>
-    <video id="localVideo" autoplay muted></video>
-    <video id="remoteVideo" autoplay></video>
-    <div>
-        <button id="startBtn">Start</button>
-        <button id="callBtn">Call</button>
-    </div>
+  <h1>WebRTC Room</h1>
+  <video id="localVideo" autoplay muted></video>
+  <video id="remoteVideo" autoplay></video>
 
-    <script>
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const startBtn = document.getElementById('startBtn');
-        const callBtn = document.getElementById('callBtn');
+  <script>
+    const roomId = 'myroom123';
+    const ws = new WebSocket(`wss://${location.host}/webrtc/${roomId}`);
 
-        let localStream;
-        let pc;
-        const room = 'test1';
-        const ws = new WebSocket(`wss://chatlink.space/webrtc/${room}`);
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
 
-        ws.onopen = () => {
-            console.log('WebSocket connected');
-        };
+    const peerConnection = new RTCPeerConnection();
 
-        ws.onerror = (err) => {
-            console.error('WebSocket error:', err);
-        };
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localVideo.srcObject = stream;
+        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+      });
 
-        ws.onmessage = async (event) => {
-            const message = JSON.parse(event.data);
-            if (message.offer) {
-                await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                ws.send(JSON.stringify({ answer }));
-            } else if (message.answer) {
-                await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
-            } else if (message.candidate) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
-                } catch (e) {
-                    console.error('Error adding ICE candidate', e);
-                }
-            }
-        };
+    peerConnection.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+    };
 
-        startBtn.onclick = async () => {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localVideo.srcObject = localStream;
-            setupPeer();
-        };
+    ws.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
 
-        callBtn.onclick = async () => {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            ws.send(JSON.stringify({ offer }));
-        };
+      if (message.offer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(message.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        ws.send(JSON.stringify({ answer }));
+      } else if (message.answer) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(message.answer));
+      } else if (message.candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+      }
+    };
 
-        function setupPeer() {
-            pc = new RTCPeerConnection();
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({ candidate: event.candidate }));
+      }
+    };
 
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    ws.send(JSON.stringify({ candidate: event.candidate }));
-                }
-            };
-
-            pc.ontrack = (event) => {
-                remoteVideo.srcObject = event.streams[0];
-            };
-        }
-    </script>
+    // On page load, create an offer (initiator)
+    ws.onopen = async () => {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      ws.send(JSON.stringify({ offer }));
+    };
+  </script>
 </body>
 </html>
