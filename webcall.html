@@ -11,7 +11,7 @@
 
   <script>
     const roomId = 'myroom123';
-    const ws = new WebSocket(`wss://${location.host}/webrtc/${roomId}`);
+    const ws = new WebSocket(`wss://${location.host}/webrtc/?room=${roomId}`);
 
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
