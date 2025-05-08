@@ -34,7 +34,7 @@
         });
 
         function connectWebSocket(room) {
-            ws = new WebSocket(`ws://chatlink.space/messagerouting/drawing/connection?room=${room}`);
+            ws = new WebSocket(`wss://chatlink.space/messagerouting/drawing/connection?room=${room}`);
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'draw') {
