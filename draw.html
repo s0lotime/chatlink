@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Multiplayer Drawing Game</title>
+    <title>Chatlink Draw</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { border: 1px solid #333; display: block; margin: 0 auto; }
@@ -34,7 +34,7 @@
         });
 
         function connectWebSocket(room) {
-            ws = new WebSocket(`wss://chatlink.space/messagerouting/drawing/connection?room=${room}`);
+            ws = new WebSocket(`ws://chatlink.space/messagerouting/drawing/connection?room=${room}`);
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'draw') {
@@ -43,18 +43,45 @@
             };
         }
 
-        canvas.addEventListener('mousedown', (e) => { drawing = true; [lastX, lastY] = [e.offsetX, e.offsetY]; });
+        let lastX = 0, lastY = 0;
+        const color = '#000';
+
+        // Mouse events for desktop
+        canvas.addEventListener('mousedown', (e) => { 
+            drawing = true; 
+            [lastX, lastY] = [e.offsetX, e.offsetY]; 
+        });
         canvas.addEventListener('mouseup', () => { drawing = false; });
         canvas.addEventListener('mouseout', () => { drawing = false; });
         canvas.addEventListener('mousemove', draw);
 
-        let lastX = 0, lastY = 0;
-        const color = '#000';
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); // Prevent scrolling
+            drawing = true; 
+            const touch = e.touches[0]; 
+            [lastX, lastY] = [touch.pageX - canvas.offsetLeft, touch.pageY - canvas.offsetTop]; 
+        });
+        canvas.addEventListener('touchend', () => { drawing = false; });
+        canvas.addEventListener('touchcancel', () => { drawing = false; });
+        canvas.addEventListener('touchmove', (e) => { 
+            e.preventDefault(); // Prevent scrolling
+            draw(e);
+        });
 
         function draw(e) {
             if (!drawing || !ws) return;
-            const x = e.offsetX;
-            const y = e.offsetY;
+            let x, y;
+            if (e.touches) {
+                // For touch events
+                const touch = e.touches[0];
+                x = touch.pageX - canvas.offsetLeft;
+                y = touch.pageY - canvas.offsetTop;
+            } else {
+                // For mouse events
+                x = e.offsetX;
+                y = e.offsetY;
+            }
             drawLine(lastX, lastY, x, y, color, true);
             [lastX, lastY] = [x, y];
         }
