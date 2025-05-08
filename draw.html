@@ -3,21 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>Chatlink Draw</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { border: 1px solid #333; display: block; margin: 0 auto; }
-        #toolbar {
-            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-            background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px #0003;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdn.chatlink.space/css/draw.css"/>
 </head>
 <body>
     <div id="toolbar">
         Room ID: <input type="text" id="roomInput" placeholder="room123">
         <button id="joinBtn">Join Room</button>
     </div>
-    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+    <div class="drawingAreaWrapper">
+        <canvas id="drawingCanvas" width="800" height="600"></canvas>
+    </div>
 
     <script>
         const canvas = document.getElementById('drawingCanvas');
@@ -57,7 +52,7 @@
 
         // Touch events for mobile
         canvas.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); // Prevent scrolling
+            e.preventDefault(); 
             drawing = true; 
             const touch = e.touches[0]; 
             [lastX, lastY] = [touch.pageX - canvas.offsetLeft, touch.pageY - canvas.offsetTop]; 
@@ -65,7 +60,7 @@
         canvas.addEventListener('touchend', () => { drawing = false; });
         canvas.addEventListener('touchcancel', () => { drawing = false; });
         canvas.addEventListener('touchmove', (e) => { 
-            e.preventDefault(); // Prevent scrolling
+            e.preventDefault();
             draw(e);
         });
 
@@ -73,12 +68,10 @@
             if (!drawing || !ws) return;
             let x, y;
             if (e.touches) {
-                // For touch events
                 const touch = e.touches[0];
                 x = touch.pageX - canvas.offsetLeft;
                 y = touch.pageY - canvas.offsetTop;
             } else {
-                // For mouse events
                 x = e.offsetX;
                 y = e.offsetY;
             }
