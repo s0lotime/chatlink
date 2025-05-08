@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Multiplayer Drawing Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { border: 1px solid #333; display: block; margin: 0 auto; }
+        #toolbar {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px #0003;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        Room ID: <input type="text" id="roomInput" placeholder="room123">
+        <button id="joinBtn">Join Room</button>
+    </div>
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let roomId = null;
+        let ws = null;
+
+        document.getElementById('joinBtn').addEventListener('click', () => {
+            roomId = document.getElementById('roomInput').value.trim();
+            if (roomId) {
+                connectWebSocket(roomId);
+            }
+        });
+
+        function connectWebSocket(room) {
+            ws = new WebSocket(`wss://chatlink.space/messagerouting/drawing/connection?room=${room}`);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'draw') {
+                    drawLine(data.x0, data.y0, data.x1, data.y1, data.color, false);
+                }
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => { drawing = true; [lastX, lastY] = [e.offsetX, e.offsetY]; });
+        canvas.addEventListener('mouseup', () => { drawing = false; });
+        canvas.addEventListener('mouseout', () => { drawing = false; });
+        canvas.addEventListener('mousemove', draw);
+
+        let lastX = 0, lastY = 0;
+        const color = '#000';
+
+        function draw(e) {
+            if (!drawing || !ws) return;
+            const x = e.offsetX;
+            const y = e.offsetY;
+            drawLine(lastX, lastY, x, y, color, true);
+            [lastX, lastY] = [x, y];
+        }
+
+        function drawLine(x0, y0, x1, y1, color, emit) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+            ctx.closePath();
+
+            if (!emit) return;
+            const data = { type: 'draw', x0, y0, x1, y1, color };
+            ws.send(JSON.stringify(data));
+        }
+    </script>
+</body>
+</html>
