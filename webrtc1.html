@@ -56,6 +56,7 @@
 
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
+        console.log('WebSocket message received:', message);
         if (message.type === 'offer') {
           handleOffer(message);
         } else if (message.type === 'answer') {
@@ -111,6 +112,7 @@
         const offer = await localConnection.createOffer();
         await localConnection.setLocalDescription(offer);
         sendOffer(offer);
+        console.log('Offer sent:', offer);
 
       } catch (err) {
         console.error('Error creating peer connection:', err);
@@ -125,11 +127,18 @@
     }
 
     async function handleOffer(offer) {
-      await remoteConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('Handling offer:', offer);
 
-      const answer = await remoteConnection.createAnswer();
-      await remoteConnection.setLocalDescription(answer);
-      sendAnswer(answer);
+      await remoteConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      
+      try {
+        const answer = await remoteConnection.createAnswer();
+        await remoteConnection.setLocalDescription(answer);
+        sendAnswer(answer);
+        console.log('Answer sent:', answer);
+      } catch (err) {
+        console.error('Error creating answer:', err);
+      }
     }
 
     function sendAnswer(answer) {
@@ -140,6 +149,7 @@
     }
 
     async function handleAnswer(answer) {
+      console.log('Handling answer:', answer);
       await localConnection.setRemoteDescription(new RTCSessionDescription(answer));
     }
 
