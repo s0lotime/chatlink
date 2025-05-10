@@ -16,22 +16,29 @@
     let localStream;
     let ws;
     let iceServers = [];
-    
+
     const wsUrl = 'wss://chatlink.space/messagerouting/webrtc/signal';
     document.getElementById('startCall').addEventListener('click', startCall);
 
     async function startCall() {
       const roomId = document.getElementById('roomId').value.trim();
       if (!roomId) {
-        alert('Please enter a ID');
+        alert('Please enter a Room ID');
         return;
       }
-      
+
       try {
         const response = await fetch('/messagerouting/webrtc/ice');
         if (response.ok) {
-          iceServers = await response.json();
-          console.log('ICE Servers fetched:', iceServers);
+          const iceData = await response.json();
+          
+          // Check if iceServers is an array
+          if (Array.isArray(iceData.iceServers)) {
+            iceServers = iceData.iceServers;
+            console.log('ICE Servers fetched:', iceServers);
+          } else {
+            throw new Error('Invalid iceServers format');
+          }
         } else {
           throw new Error('Failed to fetch ICE servers');
         }
@@ -39,9 +46,10 @@
         console.error('Error fetching ICE servers:', error);
         return;
       }
-      
+
+      // WebSocket connection for signaling
       ws = new WebSocket(`${wsUrl}?id=${roomId}`);
-      
+
       ws.onopen = () => {
         console.log('WebSocket connection established');
       };
@@ -56,48 +64,56 @@
           handleCandidate(message);
         }
       };
-      
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      const videoElement = document.createElement('video');
-      videoElement.srcObject = localStream;
-      document.body.appendChild(videoElement);
-      videoElement.play();
 
-      localConnection = new RTCPeerConnection({
-        iceServers: iceServers,
-      });
-
-      remoteConnection = new RTCPeerConnection({
-        iceServers: iceServers,
-      });
-
-      localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
-
-      localConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          sendCandidate(event.candidate);
-        }
-      };
-
-      remoteConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          sendCandidate(event.candidate);
-        }
-      };
-
-      remoteConnection.ontrack = (event) => {
-        const remoteVideo = document.createElement('video');
-        remoteVideo.srcObject = event.streams[0];
-        document.body.appendChild(remoteVideo);
-        remoteVideo.play();
-      };
-
+      // Get local stream (camera, microphone)
       try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const videoElement = document.createElement('video');
+        videoElement.srcObject = localStream;
+        document.body.appendChild(videoElement);
+        videoElement.play();
+      } catch (err) {
+        console.error('Error accessing media devices:', err);
+        return;
+      }
+
+      // Create RTCPeerConnections with the ICE servers
+      try {
+        localConnection = new RTCPeerConnection({
+          iceServers: iceServers,
+        });
+
+        remoteConnection = new RTCPeerConnection({
+          iceServers: iceServers,
+        });
+
+        localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
+
+        localConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            sendCandidate(event.candidate);
+          }
+        };
+
+        remoteConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            sendCandidate(event.candidate);
+          }
+        };
+
+        remoteConnection.ontrack = (event) => {
+          const remoteVideo = document.createElement('video');
+          remoteVideo.srcObject = event.streams[0];
+          document.body.appendChild(remoteVideo);
+          remoteVideo.play();
+        };
+
         const offer = await localConnection.createOffer();
         await localConnection.setLocalDescription(offer);
         sendOffer(offer);
+
       } catch (err) {
-        console.error('Error creating offer:', err);
+        console.error('Error creating peer connection:', err);
       }
     }
 
