@@ -10,6 +10,15 @@
   <input type="text" id="roomId" placeholder="Enter Room ID" />
   <button id="startCall">Join Room</button>
 
+  <div>
+    <h2>Your Video Feed (Local)</h2>
+    <video id="localVideo" autoplay muted></video>
+  </div>
+  <div>
+    <h2>Remote Video Feed</h2>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+
   <script>
     let localConnection;
     let remoteStream = new MediaStream();
@@ -62,7 +71,7 @@
           if (role === 'offerer') await createAndSendOffer();
         }
 
-        // ✅ make sure peer connection is ready
+        // Ensure peer connection is ready before handling offer/answer/candidate
         if ((message.type === 'offer' || message.type === 'answer' || message.type === 'candidate') && !localConnection) {
           await setupPeerConnection();
         }
@@ -82,24 +91,22 @@
     }
 
     async function setupPeerConnection() {
-      // Get media
+      // Get media (local stream)
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-      const localVideo = document.createElement('video');
-      localVideo.srcObject = localStream;
-      localVideo.autoplay = true;
-      localVideo.muted = true;
-      document.body.appendChild(localVideo);
+      const localVideo = document.getElementById('localVideo');
+      localVideo.srcObject = localStream; // Attach local stream to local video element
 
-      const remoteVideo = document.createElement('video');
-      remoteVideo.srcObject = remoteStream;
-      remoteVideo.autoplay = true;
-      document.body.appendChild(remoteVideo);
+      // Create a remote video element
+      const remoteVideo = document.getElementById('remoteVideo');
+      remoteVideo.srcObject = remoteStream; // Attach remote stream to remote video element
 
       localConnection = new RTCPeerConnection({ iceServers });
 
+      // Add tracks to the peer connection from local stream
       localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
 
+      // ICE candidate handling
       localConnection.onicecandidate = (event) => {
         if (event.candidate) {
           console.log('Candidate generated:', event.candidate);
@@ -113,11 +120,15 @@
         }
       };
 
+      // Handle incoming tracks from the remote peer
       localConnection.ontrack = (event) => {
         event.streams[0].getTracks().forEach(track => {
-          remoteStream.addTrack(track);
+          remoteStream.addTrack(track); // Add remote tracks to the remote stream
         });
       };
+
+      // Once remote description is set, flush candidate queue
+      flushCandidateQueue();
     }
 
     async function createAndSendOffer() {
@@ -138,7 +149,7 @@
         candidateQueue.forEach(candidate => {
           sendMessage({ type: 'candidate', candidate: candidate });
         });
-        candidateQueue = []; // Clear the queue
+        candidateQueue = []; // Clear the queue after sending
       }
     }
   </script>
