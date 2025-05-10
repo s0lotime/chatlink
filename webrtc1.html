@@ -47,38 +47,38 @@
       ws.onerror = (err) => console.error('WebSocket error:', err);
 
       ws.onmessage = async (event) => {
-  const message = JSON.parse(event.data);
+        const message = JSON.parse(event.data);
 
-  if (message.error) {
-    alert(message.error);
-    return;
-  }
+        if (message.error) {
+          alert(message.error);
+          return;
+        }
 
-  if (message.role) {
-    role = message.role;
-    console.log("Assigned role:", role);
-    await setupPeerConnection();
-    if (role === 'offerer') await createAndSendOffer();
-  }
+        if (message.role) {
+          role = message.role;
+          console.log("Assigned role:", role);
+          await setupPeerConnection();
+          if (role === 'offerer') await createAndSendOffer();
+        }
 
-  // ✅ make sure peer connection is ready
-  if ((message.type === 'offer' || message.type === 'answer' || message.type === 'candidate') && !localConnection) {
-    await setupPeerConnection();
-  }
+        // ✅ Ensure peer connection is ready before processing
+        if ((message.type === 'offer' || message.type === 'answer' || message.type === 'candidate') && !localConnection) {
+          await setupPeerConnection();
+        }
 
-  if (message.type === 'offer') {
-    await localConnection.setRemoteDescription(new RTCSessionDescription(message));
-    const answer = await localConnection.createAnswer();
-    await localConnection.setLocalDescription(answer);
-    sendMessage({ type: 'answer', sdp: answer.sdp });
-  } else if (message.type === 'answer') {
-    await localConnection.setRemoteDescription(new RTCSessionDescription(message));
-  } else if (message.type === 'candidate') {
-    const candidate = new RTCIceCandidate(message.candidate);
-    await localConnection.addIceCandidate(candidate);
-  }
-};
-
+        if (message.type === 'offer') {
+          await localConnection.setRemoteDescription(new RTCSessionDescription(message));
+          const answer = await localConnection.createAnswer();
+          await localConnection.setLocalDescription(answer);
+          sendMessage({ type: 'answer', sdp: answer.sdp });
+        } else if (message.type === 'answer') {
+          await localConnection.setRemoteDescription(new RTCSessionDescription(message));
+        } else if (message.type === 'candidate') {
+          const candidate = new RTCIceCandidate(message.candidate);
+          await localConnection.addIceCandidate(candidate);
+        }
+      };
+    }
 
     async function setupPeerConnection() {
       // Get media
