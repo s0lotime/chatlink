@@ -26,9 +26,9 @@
     let ws;
     let role;
     let iceServers = [];
+    let candidateQueue = []; // Queue for ICE candidates
 
     const wsUrl = 'wss://chatlink.space/messagerouting/webrtc/signal';
-    let candidateQueue = []; // Queue for ICE candidates
 
     document.getElementById('startCall').addEventListener('click', startCall);
 
@@ -134,7 +134,11 @@
     async function createAndSendOffer() {
       const offer = await localConnection.createOffer();
       await localConnection.setLocalDescription(offer);
+      console.log('Offer sent:', offer);
       sendMessage({ type: 'offer', sdp: offer.sdp });
+
+      // After sending the offer, flush candidate queue (send candidates to the answerer)
+      flushCandidateQueue();
     }
 
     function sendMessage(message) {
@@ -147,6 +151,7 @@
     function flushCandidateQueue() {
       if (candidateQueue.length > 0 && localConnection.remoteDescription) {
         candidateQueue.forEach(candidate => {
+          console.log('Sending queued candidate:', candidate);
           sendMessage({ type: 'candidate', candidate: candidate });
         });
         candidateQueue = []; // Clear the queue after sending
