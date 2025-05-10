@@ -10,6 +10,12 @@
   <input type="text" id="roomId" placeholder="Enter Room ID" />
   <button id="startCall">Join Room</button>
 
+  <h2>Your Video</h2>
+  <video id="localVideo" autoplay muted></video>  <!-- Local Video for both Offerer and Answerer -->
+
+  <h2>Remote Video</h2>
+  <video id="remoteVideo" autoplay></video>  <!-- Remote Video for the Answerer to see Offerer and vice versa -->
+
   <script>
     let localConnection;
     let remoteStream = new MediaStream();
@@ -84,19 +90,15 @@
       // Get media
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-      const localVideo = document.createElement('video');
+      const localVideo = document.getElementById('localVideo');
       localVideo.srcObject = localStream;
-      localVideo.autoplay = true;
-      localVideo.muted = true;
-      document.body.appendChild(localVideo);
 
-      const remoteVideo = document.createElement('video');
+      const remoteVideo = document.getElementById('remoteVideo');
       remoteVideo.srcObject = remoteStream;
-      remoteVideo.autoplay = true;
-      document.body.appendChild(remoteVideo);
 
       localConnection = new RTCPeerConnection({ iceServers });
 
+      // Add local media to peer connection
       localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
 
       localConnection.onicecandidate = (event) => {
@@ -105,7 +107,7 @@
         }
       };
 
-      // Fix for the offerer not seeing the other person's video
+      // Fix for offerer not seeing the other person's video
       localConnection.ontrack = (event) => {
         event.streams[0].getTracks().forEach(track => {
           remoteStream.addTrack(track);
