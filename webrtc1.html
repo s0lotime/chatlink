@@ -3,109 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebRTC Manual Signaling - Peer A</title>
+  <title>WebRTC Signaling with Dynamic ICE Servers</title>
 </head>
 <body>
-  <h1>WebRTC with Manual Signaling (Peer A)</h1>
-  
-  <button id="startCallBtn">Start Call</button>
-  <button id="endCallBtn" disabled>End Call</button>
-
-  <h3>Enter Offer:</h3>
-  <textarea id="offerTextArea" rows="10" cols="50"></textarea>
-  <button id="sendOfferBtn">Send Offer</button>
-
-  <h3>Enter ICE Candidates:</h3>
-  <textarea id="candidateTextArea" rows="4" cols="50"></textarea>
-  <button id="sendCandidateBtn">Send Candidate</button>
-
-  <h3>Enter Answer (from Peer B):</h3>
-  <textarea id="answerTextArea" rows="10" cols="50"></textarea>
-  <button id="setAnswerBtn">Set Answer</button>
+  <h1>WebRTC Signaling with Room ID</h1>
+  <input type="text" id="roomId" placeholder="Enter Room ID" />
+  <button id="startCall">Start Call</button>
 
   <script>
-    let peerConnection;
+    let localConnection;
+    let remoteConnection;
     let localStream;
+    let ws;
+    let iceServers = [];
+    
+    const wsUrl = 'wss://chatlink.space/messagerouting/webrtc/signal';
+    document.getElementById('startCall').addEventListener('click', startCall);
 
-    // Fetch ICE servers (TURN)
-    async function getIceServers() {
-      const res = await fetch('/messagerouting/webrtc/ice');
-      if (!res.ok) {
-        console.error('Failed to get ICE servers');
-        return [];
-      }
-      const data = await res.json();
-      return data.iceServers || [];
-    }
-
-    // Setup WebRTC PeerConnection with ICE servers
-    async function setupPeerConnection() {
-      const iceServers = await getIceServers();
-      if (iceServers.length === 0) {
-        console.error('No ICE servers available');
+    async function startCall() {
+      const roomId = document.getElementById('roomId').value.trim();
+      if (!roomId) {
+        alert('Please enter a ID');
         return;
       }
+      
+      try {
+        const response = await fetch('/messagerouting/webrtc/ice');
+        if (response.ok) {
+          iceServers = await response.json();
+          console.log('ICE Servers fetched:', iceServers);
+        } else {
+          throw new Error('Failed to fetch ICE servers');
+        }
+      } catch (error) {
+        console.error('Error fetching ICE servers:', error);
+        return;
+      }
+      
+      ws = new WebSocket(`${wsUrl}?id=${roomId}`);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connection established');
+      };
 
-      peerConnection = new RTCPeerConnection({
-        iceServers
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'offer') {
+          handleOffer(message);
+        } else if (message.type === 'answer') {
+          handleAnswer(message);
+        } else if (message.type === 'candidate') {
+          handleCandidate(message);
+        }
+      };
+      
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const videoElement = document.createElement('video');
+      videoElement.srcObject = localStream;
+      document.body.appendChild(videoElement);
+      videoElement.play();
+
+      localConnection = new RTCPeerConnection({
+        iceServers: iceServers,
       });
 
-      // Get user media (video and audio)
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      remoteConnection = new RTCPeerConnection({
+        iceServers: iceServers,
+      });
 
-      peerConnection.onicecandidate = ({ candidate }) => {
-        if (candidate) {
-          document.getElementById('candidateTextArea').value += JSON.stringify(candidate) + '\n';
+      localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
+
+      localConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendCandidate(event.candidate);
         }
       };
 
-      peerConnection.ontrack = event => {
+      remoteConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendCandidate(event.candidate);
+        }
+      };
+
+      remoteConnection.ontrack = (event) => {
         const remoteVideo = document.createElement('video');
         remoteVideo.srcObject = event.streams[0];
         document.body.appendChild(remoteVideo);
         remoteVideo.play();
       };
+
+      try {
+        const offer = await localConnection.createOffer();
+        await localConnection.setLocalDescription(offer);
+        sendOffer(offer);
+      } catch (err) {
+        console.error('Error creating offer:', err);
+      }
     }
 
-    // Create an offer and display it in the textarea for manual sending
-    async function createOffer() {
-      await setupPeerConnection();
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      document.getElementById('offerTextArea').value = JSON.stringify(offer);
-      console.log('Offer created:', offer);
+    function sendOffer(offer) {
+      ws.send(JSON.stringify({
+        type: 'offer',
+        sdp: offer.sdp
+      }));
     }
 
-    // Set the received answer (from Peer B)
-    async function setAnswer(answer) {
-      const desc = new RTCSessionDescription(answer);
-      await peerConnection.setRemoteDescription(desc);
-      console.log('Answer set:', answer);
+    async function handleOffer(offer) {
+      await remoteConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+      const answer = await remoteConnection.createAnswer();
+      await remoteConnection.setLocalDescription(answer);
+      sendAnswer(answer);
     }
 
-    // Start the call (create offer)
-    document.getElementById('startCallBtn').addEventListener('click', createOffer);
+    function sendAnswer(answer) {
+      ws.send(JSON.stringify({
+        type: 'answer',
+        sdp: answer.sdp
+      }));
+    }
 
-    // Send the offer manually (via copy-paste)
-    document.getElementById('sendOfferBtn').addEventListener('click', () => {
-      const offer = JSON.parse(document.getElementById('offerTextArea').value);
-      console.log('Offer sent:', offer);
-    });
+    async function handleAnswer(answer) {
+      await localConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    }
 
-    // Manually add ICE candidates (copy-paste from Peer B)
-    document.getElementById('sendCandidateBtn').addEventListener('click', () => {
-      const candidate = JSON.parse(document.getElementById('candidateTextArea').value);
-      peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    });
+    function sendCandidate(candidate) {
+      ws.send(JSON.stringify({
+        type: 'candidate',
+        candidate: candidate
+      }));
+    }
 
-    // Set the answer manually (copy-paste from Peer B)
-    document.getElementById('setAnswerBtn').addEventListener('click', () => {
-      const answer = JSON.parse(document.getElementById('answerTextArea').value);
-      setAnswer(answer);
-    });
+    function handleCandidate(candidate) {
+      const iceCandidate = new RTCIceCandidate(candidate);
+      localConnection.addIceCandidate(iceCandidate);
+      remoteConnection.addIceCandidate(iceCandidate);
+    }
   </script>
 </body>
 </html>
