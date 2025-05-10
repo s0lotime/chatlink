@@ -19,6 +19,7 @@
     let iceServers = [];
 
     const wsUrl = 'wss://chatlink.space/messagerouting/webrtc/signal';
+    let candidateQueue = []; // Queue for ICE candidates
 
     document.getElementById('startCall').addEventListener('click', startCall);
 
@@ -101,8 +102,14 @@
 
       localConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log('Sending ICE candidate', event.candidate);
-          sendMessage({ type: 'candidate', candidate: event.candidate });
+          console.log('Candidate generated:', event.candidate);
+          if (localConnection.remoteDescription) {
+            // If remote description is set, send the candidate immediately
+            sendMessage({ type: 'candidate', candidate: event.candidate });
+          } else {
+            // If remote description is not set, queue the candidate
+            candidateQueue.push(event.candidate);
+          }
         }
       };
 
@@ -122,6 +129,16 @@
     function sendMessage(message) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(message));
+      }
+    }
+
+    // Once remote description is set, send any queued candidates
+    function flushCandidateQueue() {
+      if (candidateQueue.length > 0 && localConnection.remoteDescription) {
+        candidateQueue.forEach(candidate => {
+          sendMessage({ type: 'candidate', candidate: candidate });
+        });
+        candidateQueue = []; // Clear the queue
       }
     }
   </script>
