@@ -61,7 +61,7 @@
           if (role === 'offerer') await createAndSendOffer();
         }
 
-        // ✅ Ensure peer connection is ready before processing
+        // Ensure peer connection is ready before processing messages
         if ((message.type === 'offer' || message.type === 'answer' || message.type === 'candidate') && !localConnection) {
           await setupPeerConnection();
         }
@@ -105,6 +105,7 @@
         }
       };
 
+      // Fix for the offerer not seeing the other person's video
       localConnection.ontrack = (event) => {
         event.streams[0].getTracks().forEach(track => {
           remoteStream.addTrack(track);
