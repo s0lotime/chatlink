@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebRTC Signaling with Dynamic ICE Servers</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WebRTC with Role Assignment</title>
 </head>
 <body>
-  <h1>WebRTC Signaling with Room ID</h1>
+  <h1>WebRTC Call via Room ID</h1>
   <input type="text" id="roomId" placeholder="Enter Room ID" />
-  <button id="startCall">Start Call</button>
+  <button id="startCall">Join Room</button>
 
   <script>
     let localConnection;
-    let remoteConnection;
+    let remoteStream = new MediaStream();
     let localStream;
     let ws;
+    let role;
     let iceServers = [];
 
     const wsUrl = 'wss://chatlink.space/messagerouting/webrtc/signal';
+
     document.getElementById('startCall').addEventListener('click', startCall);
 
     async function startCall() {
@@ -27,143 +29,92 @@
         return;
       }
 
+      // Fetch ICE servers
       try {
         const response = await fetch('/messagerouting/webrtc/ice');
-        if (response.ok) {
-          const iceData = await response.json();
-          
-          // Check if iceServers is an array
-          if (Array.isArray(iceData.iceServers)) {
-            iceServers = iceData.iceServers;
-            console.log('ICE Servers fetched:', iceServers);
-          } else {
-            throw new Error('Invalid iceServers format');
-          }
-        } else {
-          throw new Error('Failed to fetch ICE servers');
-        }
-      } catch (error) {
-        console.error('Error fetching ICE servers:', error);
+        const data = await response.json();
+        if (!Array.isArray(data.iceServers)) throw new Error("Invalid ICE format");
+        iceServers = data.iceServers;
+      } catch (err) {
+        console.error('Failed to fetch ICE servers:', err);
         return;
       }
 
-      // WebSocket connection for signaling
+      // Open WebSocket for signaling
       ws = new WebSocket(`${wsUrl}?id=${roomId}`);
 
-      ws.onopen = () => {
-        console.log('WebSocket connection established');
-      };
+      ws.onopen = () => console.log('WebSocket connected');
+      ws.onerror = (err) => console.error('WebSocket error:', err);
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         const message = JSON.parse(event.data);
-        console.log('WebSocket message received:', message);
-        if (message.type === 'offer') {
-          handleOffer(message);
+
+        if (message.error) {
+          alert(message.error);
+          return;
+        }
+
+        if (message.role) {
+          role = message.role;
+          console.log("Assigned role:", role);
+          await setupPeerConnection();
+          if (role === 'offerer') await createAndSendOffer();
+        } else if (message.type === 'offer') {
+          await localConnection.setRemoteDescription(new RTCSessionDescription(message));
+          const answer = await localConnection.createAnswer();
+          await localConnection.setLocalDescription(answer);
+          sendMessage({ type: 'answer', sdp: answer.sdp });
         } else if (message.type === 'answer') {
-          handleAnswer(message);
+          await localConnection.setRemoteDescription(new RTCSessionDescription(message));
         } else if (message.type === 'candidate') {
-          handleCandidate(message);
+          const candidate = new RTCIceCandidate(message.candidate);
+          await localConnection.addIceCandidate(candidate);
+        }
+      };
+    }
+
+    async function setupPeerConnection() {
+      // Get media
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+      const localVideo = document.createElement('video');
+      localVideo.srcObject = localStream;
+      localVideo.autoplay = true;
+      localVideo.muted = true;
+      document.body.appendChild(localVideo);
+
+      const remoteVideo = document.createElement('video');
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.autoplay = true;
+      document.body.appendChild(remoteVideo);
+
+      localConnection = new RTCPeerConnection({ iceServers });
+
+      localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
+
+      localConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendMessage({ type: 'candidate', candidate: event.candidate });
         }
       };
 
-      // Get local stream (camera, microphone)
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const videoElement = document.createElement('video');
-        videoElement.srcObject = localStream;
-        document.body.appendChild(videoElement);
-        videoElement.play();
-      } catch (err) {
-        console.error('Error accessing media devices:', err);
-        return;
-      }
-
-      // Create RTCPeerConnections with the ICE servers
-      try {
-        localConnection = new RTCPeerConnection({
-          iceServers: iceServers,
+      localConnection.ontrack = (event) => {
+        event.streams[0].getTracks().forEach(track => {
+          remoteStream.addTrack(track);
         });
+      };
+    }
 
-        remoteConnection = new RTCPeerConnection({
-          iceServers: iceServers,
-        });
+    async function createAndSendOffer() {
+      const offer = await localConnection.createOffer();
+      await localConnection.setLocalDescription(offer);
+      sendMessage({ type: 'offer', sdp: offer.sdp });
+    }
 
-        localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
-
-        localConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            sendCandidate(event.candidate);
-          }
-        };
-
-        remoteConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            sendCandidate(event.candidate);
-          }
-        };
-
-        remoteConnection.ontrack = (event) => {
-          const remoteVideo = document.createElement('video');
-          remoteVideo.srcObject = event.streams[0];
-          document.body.appendChild(remoteVideo);
-          remoteVideo.play();
-        };
-
-        const offer = await localConnection.createOffer();
-        await localConnection.setLocalDescription(offer);
-        sendOffer(offer);
-        console.log('Offer sent:', offer);
-
-      } catch (err) {
-        console.error('Error creating peer connection:', err);
+    function sendMessage(message) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
       }
-    }
-
-    function sendOffer(offer) {
-      ws.send(JSON.stringify({
-        type: 'offer',
-        sdp: offer.sdp
-      }));
-    }
-
-    async function handleOffer(offer) {
-      console.log('Handling offer:', offer);
-
-      await remoteConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      
-      try {
-        const answer = await remoteConnection.createAnswer();
-        await remoteConnection.setLocalDescription(answer);
-        sendAnswer(answer);
-        console.log('Answer sent:', answer);
-      } catch (err) {
-        console.error('Error creating answer:', err);
-      }
-    }
-
-    function sendAnswer(answer) {
-      ws.send(JSON.stringify({
-        type: 'answer',
-        sdp: answer.sdp
-      }));
-    }
-
-    async function handleAnswer(answer) {
-      console.log('Handling answer:', answer);
-      await localConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    }
-
-    function sendCandidate(candidate) {
-      ws.send(JSON.stringify({
-        type: 'candidate',
-        candidate: candidate
-      }));
-    }
-
-    function handleCandidate(candidate) {
-      const iceCandidate = new RTCIceCandidate(candidate);
-      localConnection.addIceCandidate(iceCandidate);
-      remoteConnection.addIceCandidate(iceCandidate);
     }
   </script>
 </body>
