@@ -10,12 +10,6 @@
   <input type="text" id="roomId" placeholder="Enter Room ID" />
   <button id="startCall">Join Room</button>
 
-  <h2>Your Video</h2>
-  <video id="localVideo" autoplay muted></video>  <!-- Local Video for both Offerer and Answerer -->
-
-  <h2>Remote Video</h2>
-  <video id="remoteVideo" autoplay></video>  <!-- Remote Video for the Answerer to see Offerer and vice versa -->
-
   <script>
     let localConnection;
     let remoteStream = new MediaStream();
@@ -64,14 +58,10 @@
           role = message.role;
           console.log("Assigned role:", role);
           await setupPeerConnection();
-
-          // Only offerer should create and send an offer
-          if (role === 'offerer') {
-            await createAndSendOffer();
-          }
+          if (role === 'offerer') await createAndSendOffer();
         }
 
-        // Ensure peer connection is ready before processing messages
+        // ✅ make sure peer connection is ready
         if ((message.type === 'offer' || message.type === 'answer' || message.type === 'candidate') && !localConnection) {
           await setupPeerConnection();
         }
@@ -94,24 +84,28 @@
       // Get media
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-      const localVideo = document.getElementById('localVideo');
+      const localVideo = document.createElement('video');
       localVideo.srcObject = localStream;
+      localVideo.autoplay = true;
+      localVideo.muted = true;
+      document.body.appendChild(localVideo);
 
-      const remoteVideo = document.getElementById('remoteVideo');
+      const remoteVideo = document.createElement('video');
       remoteVideo.srcObject = remoteStream;
+      remoteVideo.autoplay = true;
+      document.body.appendChild(remoteVideo);
 
       localConnection = new RTCPeerConnection({ iceServers });
 
-      // Add local media to peer connection
       localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
 
       localConnection.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log('Sending ICE candidate', event.candidate);
           sendMessage({ type: 'candidate', candidate: event.candidate });
         }
       };
 
-      // Fix for offerer not seeing the other person's video
       localConnection.ontrack = (event) => {
         event.streams[0].getTracks().forEach(track => {
           remoteStream.addTrack(track);
