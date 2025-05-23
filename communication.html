@@ -1,47 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Chatlink Call</title>
+  <title>Chatlink Video Call</title>
+  <style>
+    video { width: 45%; margin: 1rem; border-radius: 10px; background: black; }
+  </style>
 </head>
 <body>
-  <h1>WebRTC Signaling Test</h1>
-  <pre id="log"></pre>
+  <h2>Chatlink WebRTC Video Call</h2>
+  <video id="local" autoplay playsinline muted></video>
+  <video id="remote" autoplay playsinline></video>
 
   <script>
-    const room = "testroom"; // You can make this dynamic
+    const room = prompt("Enter room ID (shared with your friend):", "room123");
     const socket = new WebSocket(`wss://chatlink.space/messagerouting/call/connection?room=${room}`);
-    const log = (msg) => document.getElementById('log').textContent += msg + "\n";
+    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
+    let localStream, peerConnection;
     let myId = null;
 
-    socket.onopen = () => {
+    const log = console.log;
+
+    const localVideo = document.getElementById('local');
+    const remoteVideo = document.getElementById('remote');
+
+    socket.onopen = async () => {
       log("Connected to signaling server");
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
     };
 
-    socket.onmessage = (event) => {
+    socket.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === "welcome") {
         myId = msg.id;
-        log(`My client ID: ${myId}`);
-      } else if (msg.type === "offer" || msg.type === "answer" || msg.type === "ice") {
-        log(`Received ${msg.type} from ${msg.from}`);
-        // Here you’d handle signaling for WebRTC
-      } else if (msg.error) {
-        log("Error: " + msg.error);
+        log("My ID: " + myId);
+      }
+
+      if (!peerConnection && msg.type !== "welcome") {
+        startPeerConnection(msg.from);
+      }
+
+      if (msg.type === "offer") {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        sendTo(msg.from, "answer", answer);
+      }
+
+      if (msg.type === "answer") {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.payload));
+      }
+
+      if (msg.type === "ice") {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(msg.payload));
+        } catch (e) {
+          log("Error adding ICE candidate", e);
+        }
       }
     };
 
-    socket.onerror = (err) => {
-      log("WebSocket error: " + err);
-    };
+    function startPeerConnection(remoteId) {
+      peerConnection = new RTCPeerConnection(config);
 
-    // Simulate sending an offer to another client
-    function sendTestMessage(toId) {
-      socket.send(JSON.stringify({
-        to: toId,
-        type: "offer",
-        payload: { sdp: "dummySDP" }
-      }));
+      // Send our ICE candidates
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendTo(remoteId, "ice", event.candidate);
+        }
+      };
+
+      // Remote stream
+      peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      // Add our tracks
+      localStream.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      // Start offer if we initiated the connection
+      if (myId && myId.localeCompare(remoteId) < 0) {
+        peerConnection.createOffer().then((offer) => {
+          return peerConnection.setLocalDescription(offer);
+        }).then(() => {
+          sendTo(remoteId, "offer", peerConnection.localDescription);
+        });
+      }
+    }
+
+    function sendTo(toId, type, payload) {
+      socket.send(JSON.stringify({ to: toId, type, payload }));
     }
   </script>
 </body>
