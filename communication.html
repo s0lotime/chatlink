@@ -176,7 +176,9 @@
       };
 
       pc.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
+        if (!remoteVideo.srcObject) {
+    remoteVideo.srcObject = event.streams[0];
+  }
       };
 
       return pc;
