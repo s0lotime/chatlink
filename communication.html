@@ -43,18 +43,36 @@
   let targetId;
 
   socket.addEventListener("open", async () => {
-    console.log("WebSocket connected");
+  console.log("WebSocket connected");
 
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localVideo.srcObject = localStream;
+  localStream = new MediaStream();
 
-      peer = createPeer();
-      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-    } catch (err) {
-      console.error("Failed to get media:", err);
-    }
-  });
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
+  } catch (err) {
+    console.warn("Audio fetch failed:", err);
+  }
+
+  try {
+    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoStream.getVideoTracks().forEach(track => {
+      localStream.addTrack(track);
+      localVideo.srcObject = localStream; // show video if available
+    });
+  } catch (err) {
+    console.warn("Video fetch failed:", err);
+  }
+
+  if (localStream.getTracks().length === 0) {
+    console.error("No media tracks available. Aborting WebRTC setup.");
+    return;
+  }
+
+  peer = createPeer();
+  localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+});
+
 
   socket.addEventListener("message", async (event) => {
     const msg = JSON.parse(event.data);
