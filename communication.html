@@ -2,97 +2,98 @@
 <html>
 <head>
   <title>Chatlink Video Call</title>
-  <style>
-    video { width: 45%; margin: 1rem; border-radius: 10px; background: black; }
-  </style>
 </head>
 <body>
-  <h2>Chatlink WebRTC Video Call</h2>
-  <video id="local" autoplay playsinline muted></video>
-  <video id="remote" autoplay playsinline></video>
+  <h1>Chatlink WebRTC Call</h1>
+
+  <video id="localVideo" autoplay playsinline muted></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <input id="targetId" placeholder="Target client ID" />
+  <button onclick="startCall()">Start Call</button>
 
   <script>
-    const room = prompt("Enter room ID (shared with your friend):", "room123");
-    const socket = new WebSocket(`wss://chatlink.space/messagerouting/call/connection?room=${room}`);
-    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
 
-    let localStream, peerConnection;
-    let myId = null;
+    const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
-    const log = console.log;
+    let localStream;
+    let peer;
+    let myId;
+    let targetId;
 
-    const localVideo = document.getElementById('local');
-    const remoteVideo = document.getElementById('remote');
+    socket.addEventListener("open", async () => {
+      console.log("WebSocket connected");
 
-    socket.onopen = async () => {
-      log("Connected to signaling server");
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
-    };
 
-    socket.onmessage = async (event) => {
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+    });
+
+    socket.addEventListener("message", async (event) => {
       const msg = JSON.parse(event.data);
+      console.log("Message:", msg);
+
       if (msg.type === "welcome") {
         myId = msg.id;
-        log("My ID: " + myId);
-      }
-
-      if (!peerConnection && msg.type !== "welcome") {
-        startPeerConnection(msg.from);
+        console.log("My ID:", myId);
       }
 
       if (msg.type === "offer") {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.payload));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        sendTo(msg.from, "answer", answer);
+        targetId = msg.from;
+        await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        sendMessage(targetId, "answer", answer);
       }
 
       if (msg.type === "answer") {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
       }
 
       if (msg.type === "ice") {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(msg.payload));
+          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
         } catch (e) {
-          log("Error adding ICE candidate", e);
+          console.error("Error adding ICE candidate:", e);
         }
       }
-    };
+    });
 
-    function startPeerConnection(remoteId) {
-      peerConnection = new RTCPeerConnection(config);
+    function sendMessage(to, type, payload) {
+      socket.send(JSON.stringify({ to, type, payload }));
+    }
 
-      // Send our ICE candidates
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          sendTo(remoteId, "ice", event.candidate);
+    function createPeer() {
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
+      });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && targetId) {
+          sendMessage(targetId, "ice", event.candidate);
         }
       };
 
-      // Remote stream
-      peerConnection.ontrack = (event) => {
+      pc.ontrack = (event) => {
         remoteVideo.srcObject = event.streams[0];
       };
 
-      // Add our tracks
-      localStream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      // Start offer if we initiated the connection
-      if (myId && myId.localeCompare(remoteId) < 0) {
-        peerConnection.createOffer().then((offer) => {
-          return peerConnection.setLocalDescription(offer);
-        }).then(() => {
-          sendTo(remoteId, "offer", peerConnection.localDescription);
-        });
-      }
+      return pc;
     }
 
-    function sendTo(toId, type, payload) {
-      socket.send(JSON.stringify({ to: toId, type, payload }));
+    async function startCall() {
+      targetId = document.getElementById("targetId").value.trim();
+      if (!targetId) return alert("Enter target ID");
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      sendMessage(targetId, "offer", offer);
     }
   </script>
 </body>
