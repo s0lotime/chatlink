@@ -1,182 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WebRTC Signaling Demo</title>
-<style>
-  video {
-    width: 300px;
-    height: 225px;
-    background: black;
-    margin: 10px;
-  }
-  #localVideo {
-    border: 2px solid green;
-  }
-</style>
+  <title>Chatlink Call</title>
 </head>
 <body>
+  <h1>WebRTC Signaling Test</h1>
+  <pre id="log"></pre>
 
-<h2>WebRTC Simple Signaler Demo</h2>
+  <script>
+    const room = "testroom"; // You can make this dynamic
+    const socket = new WebSocket(`wss://chatlink.space/messagerouting/call/connection?room=${room}`);
+    const log = (msg) => document.getElementById('log').textContent += msg + "\n";
 
-<button id="startButton">Start Camera</button><br />
+    let myId = null;
 
-<label>Your client ID (from server):</label>
-<span id="clientId">Not connected</span><br />
-
-<label>Call target client ID:</label>
-<input type="text" id="targetId" />
-<button id="callButton" disabled>Call</button>
-
-<div>
-  <h3>Local Video</h3>
-  <video id="localVideo" autoplay muted playsinline></video>
-</div>
-
-<div>
-  <h3>Remote Video</h3>
-  <video id="remoteVideo" autoplay playsinline></video>
-</div>
-
-<script>
-  const startButton = document.getElementById('startButton');
-  const callButton = document.getElementById('callButton');
-  const clientIdSpan = document.getElementById('clientId');
-  const targetIdInput = document.getElementById('targetId');
-  const localVideo = document.getElementById('localVideo');
-  const remoteVideo = document.getElementById('remoteVideo');
-
-  let localStream = null;
-  let ws = null;
-  let clientId = null;
-  let pc = null;
-
-  // Signaling server WebSocket URL (update to your own)
-  const signalingServerUrl = "wss://chatlink.space/messagerouting/call/connection";
-
-  startButton.onclick = async () => {
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      callButton.disabled = false;
-      connectWebSocket();
-    } catch (err) {
-      alert("Error accessing media devices: " + err.message);
-    }
-  };
-
-  function connectWebSocket() {
-    ws = new WebSocket(signalingServerUrl);
-
-    ws.onopen = () => {
-      console.log("Connected to signaling server");
+    socket.onopen = () => {
+      log("Connected to signaling server");
     };
 
-    ws.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
-      console.log("Received", message);
-
-      switch (message.type) {
-        case "welcome":
-          clientId = message.id;
-          clientIdSpan.textContent = clientId;
-          break;
-
-        case "offer":
-          await handleOffer(message.from, message.payload);
-          break;
-
-        case "answer":
-          await handleAnswer(message.payload);
-          break;
-
-        case "ice":
-          await handleIceCandidate(message.payload);
-          break;
-
-        case "error":
-          alert("Signaling error: " + message.error);
-          break;
+    socket.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "welcome") {
+        myId = msg.id;
+        log(`My client ID: ${myId}`);
+      } else if (msg.type === "offer" || msg.type === "answer" || msg.type === "ice") {
+        log(`Received ${msg.type} from ${msg.from}`);
+        // Here you’d handle signaling for WebRTC
+      } else if (msg.error) {
+        log("Error: " + msg.error);
       }
     };
 
-    ws.onerror = (e) => {
-      console.error("WebSocket error", e);
+    socket.onerror = (err) => {
+      log("WebSocket error: " + err);
     };
 
-    ws.onclose = () => {
-      alert("Signaling server connection closed");
-      clientIdSpan.textContent = "Disconnected";
-      callButton.disabled = true;
-    };
-  }
-
-  callButton.onclick = async () => {
-    const targetId = targetIdInput.value.trim();
-    if (!targetId) {
-      alert("Enter a target client ID");
-      return;
+    // Simulate sending an offer to another client
+    function sendTestMessage(toId) {
+      socket.send(JSON.stringify({
+        to: toId,
+        type: "offer",
+        payload: { sdp: "dummySDP" }
+      }));
     }
-    await startCall(targetId);
-  };
-
-  async function createPeerConnection(targetId) {
-    pc = new RTCPeerConnection();
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        sendSignal(targetId, "ice", event.candidate);
-      }
-    };
-
-    pc.ontrack = (event) => {
-      remoteVideo.srcObject = event.streams[0];
-    };
-
-    // Add local tracks
-    if (localStream) {
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    }
-
-    return pc;
-  }
-
-  async function startCall(targetId) {
-    pc = await createPeerConnection(targetId);
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    sendSignal(targetId, "offer", pc.localDescription);
-  }
-
-  async function handleOffer(from, offer) {
-    pc = await createPeerConnection(from);
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    sendSignal(from, "answer", pc.localDescription);
-  }
-
-  async function handleAnswer(answer) {
-    if (!pc) return;
-    await pc.setRemoteDescription(new RTCSessionDescription(answer));
-  }
-
-  async function handleIceCandidate(candidate) {
-    if (!pc) return;
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-  }
-
-  function sendSignal(to, type, payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ to, type, payload }));
-    }
-  }
-</script>
-
+  </script>
 </body>
 </html>
