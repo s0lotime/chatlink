@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -19,6 +20,7 @@
 </head>
 <body>
   <h1>Chatlink WebRTC Call with Equalizer</h1>
+  <h1 id="idOutput">My ID is ...</h1>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
@@ -59,6 +61,7 @@
 
     if (msg.type === "welcome") {
       myId = msg.id;
+      document.getElementById("idOutput").textContent = myId
       console.log("My ID:", myId);
     }
 
