@@ -1,133 +1,182 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Minimal WebRTC Video Call (Manual Signaling)</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WebRTC Signaling Demo</title>
+<style>
+  video {
+    width: 300px;
+    height: 225px;
+    background: black;
+    margin: 10px;
+  }
+  #localVideo {
+    border: 2px solid green;
+  }
+</style>
 </head>
 <body>
-  <h1>WebRTC Manual Signaling Video Call Demo</h1>
 
-  <video id="localVideo" autoplay muted playsinline style="width: 45%; border: 1px solid black;"></video>
-  <video id="remoteVideo" autoplay playsinline style="width: 45%; border: 1px solid black;"></video>
-  
-  <br/>
+<h2>WebRTC Simple Signaler Demo</h2>
 
-  <button id="startCall">Start Call (Create Offer)</button>
-  <button id="answerCall">Answer Call (Create Answer)</button>
-  
-  <h3>Local SDP (Copy this to remote peer)</h3>
-  <textarea id="localSDP" cols="60" rows="10" readonly></textarea>
+<button id="startButton">Start Camera</button><br />
 
-  <h3>Remote SDP (Paste from remote peer)</h3>
-  <textarea id="remoteSDP" cols="60" rows="10"></textarea>
-  <button id="setRemoteSDP">Set Remote SDP</button>
+<label>Your client ID (from server):</label>
+<span id="clientId">Not connected</span><br />
 
-  <h3>Local ICE Candidates (Copy these to remote peer)</h3>
-  <textarea id="localICE" cols="60" rows="5" readonly></textarea>
+<label>Call target client ID:</label>
+<input type="text" id="targetId" />
+<button id="callButton" disabled>Call</button>
 
-  <h3>Remote ICE Candidates (Paste from remote peer)</h3>
-  <textarea id="remoteICE" cols="60" rows="5"></textarea>
-  <button id="addRemoteICE">Add Remote ICE Candidates</button>
+<div>
+  <h3>Local Video</h3>
+  <video id="localVideo" autoplay muted playsinline></video>
+</div>
 
-  <h3>Connection status: <span id="status">Not connected</span></h3>
+<div>
+  <h3>Remote Video</h3>
+  <video id="remoteVideo" autoplay playsinline></video>
+</div>
 
-  <script>
-    let pc = null;
-    let localStream = null;
-    let localICECandidates = [];
+<script>
+  const startButton = document.getElementById('startButton');
+  const callButton = document.getElementById('callButton');
+  const clientIdSpan = document.getElementById('clientId');
+  const targetIdInput = document.getElementById('targetId');
+  const localVideo = document.getElementById('localVideo');
+  const remoteVideo = document.getElementById('remoteVideo');
 
-    const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+  let localStream = null;
+  let ws = null;
+  let clientId = null;
+  let pc = null;
 
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const startCallBtn = document.getElementById('startCall');
-    const answerCallBtn = document.getElementById('answerCall');
-    const localSDPTextarea = document.getElementById('localSDP');
-    const remoteSDPTextarea = document.getElementById('remoteSDP');
-    const setRemoteSDPBtn = document.getElementById('setRemoteSDP');
-    const localICETextarea = document.getElementById('localICE');
-    const remoteICETextarea = document.getElementById('remoteICE');
-    const addRemoteICEBtn = document.getElementById('addRemoteICE');
-    const statusSpan = document.getElementById('status');
+  // Signaling server WebSocket URL (update to your own)
+  const signalingServerUrl = "wss://chatlink.space/messagerouting/call/connection";
 
-    async function createPeerConnection() {
-      pc = new RTCPeerConnection({ iceServers });
-
-      pc.onicecandidate = event => {
-        if (event.candidate) {
-          localICECandidates.push(event.candidate);
-          localICETextarea.value = JSON.stringify(localICECandidates, null, 2);
-        }
-      };
-
-      pc.onconnectionstatechange = () => {
-        statusSpan.textContent = pc.connectionState;
-      };
-
-      pc.ontrack = event => {
-        remoteVideo.srcObject = event.streams[0];
-      };
-
-      // Get user media (audio + video)
+  startButton.onclick = async () => {
+    try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
+      callButton.disabled = false;
+      connectWebSocket();
+    } catch (err) {
+      alert("Error accessing media devices: " + err.message);
+    }
+  };
 
-      // Add all local tracks to peer connection
+  function connectWebSocket() {
+    ws = new WebSocket(signalingServerUrl);
+
+    ws.onopen = () => {
+      console.log("Connected to signaling server");
+    };
+
+    ws.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
+      console.log("Received", message);
+
+      switch (message.type) {
+        case "welcome":
+          clientId = message.id;
+          clientIdSpan.textContent = clientId;
+          break;
+
+        case "offer":
+          await handleOffer(message.from, message.payload);
+          break;
+
+        case "answer":
+          await handleAnswer(message.payload);
+          break;
+
+        case "ice":
+          await handleIceCandidate(message.payload);
+          break;
+
+        case "error":
+          alert("Signaling error: " + message.error);
+          break;
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.error("WebSocket error", e);
+    };
+
+    ws.onclose = () => {
+      alert("Signaling server connection closed");
+      clientIdSpan.textContent = "Disconnected";
+      callButton.disabled = true;
+    };
+  }
+
+  callButton.onclick = async () => {
+    const targetId = targetIdInput.value.trim();
+    if (!targetId) {
+      alert("Enter a target client ID");
+      return;
+    }
+    await startCall(targetId);
+  };
+
+  async function createPeerConnection(targetId) {
+    pc = new RTCPeerConnection();
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendSignal(targetId, "ice", event.candidate);
+      }
+    };
+
+    pc.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+    };
+
+    // Add local tracks
+    if (localStream) {
       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     }
 
-    startCallBtn.onclick = async () => {
-      await createPeerConnection();
+    return pc;
+  }
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+  async function startCall(targetId) {
+    pc = await createPeerConnection(targetId);
 
-      localSDPTextarea.value = JSON.stringify(pc.localDescription);
-      statusSpan.textContent = "Offer created. Send SDP to remote peer.";
-    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-    answerCallBtn.onclick = async () => {
-      await createPeerConnection();
-      statusSpan.textContent = "Waiting for remote SDP...";
-    };
+    sendSignal(targetId, "offer", pc.localDescription);
+  }
 
-    setRemoteSDPBtn.onclick = async () => {
-      if (!pc) {
-        alert("Create a peer connection first (start or answer)");
-        return;
-      }
-      try {
-        const remoteDesc = JSON.parse(remoteSDPTextarea.value);
-        await pc.setRemoteDescription(new RTCSessionDescription(remoteDesc));
+  async function handleOffer(from, offer) {
+    pc = await createPeerConnection(from);
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
-        if (remoteDesc.type === "offer") {
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          localSDPTextarea.value = JSON.stringify(pc.localDescription);
-          statusSpan.textContent = "Answer created and sent. Waiting for ICE...";
-        } else {
-          statusSpan.textContent = "Remote SDP set. Waiting for ICE...";
-        }
-      } catch (e) {
-        alert("Invalid SDP JSON");
-      }
-    };
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-    addRemoteICEBtn.onclick = async () => {
-      if (!pc) {
-        alert("Create a peer connection first");
-        return;
-      }
-      try {
-        const candidates = JSON.parse(remoteICETextarea.value);
-        for (const c of candidates) {
-          await pc.addIceCandidate(new RTCIceCandidate(c));
-        }
-        statusSpan.textContent = "Remote ICE candidates added.";
-      } catch (e) {
-        alert("Invalid ICE candidate JSON");
-      }
-    };
-  </script>
+    sendSignal(from, "answer", pc.localDescription);
+  }
+
+  async function handleAnswer(answer) {
+    if (!pc) return;
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  }
+
+  async function handleIceCandidate(candidate) {
+    if (!pc) return;
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  }
+
+  function sendSignal(to, type, payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ to, type, payload }));
+    }
+  }
+</script>
+
 </body>
 </html>
