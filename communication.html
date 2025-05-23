@@ -43,7 +43,7 @@
     console.log("WebSocket connected");
 
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localVideo.srcObject = localStream;
 
       peer = createPeer();
