@@ -2,10 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Minimal WebRTC Manual Signaling</title>
+  <title>Minimal WebRTC Video Call (Manual Signaling)</title>
 </head>
 <body>
-  <h1>WebRTC Manual Signaling Demo</h1>
+  <h1>WebRTC Manual Signaling Video Call Demo</h1>
+
+  <video id="localVideo" autoplay muted playsinline style="width: 45%; border: 1px solid black;"></video>
+  <video id="remoteVideo" autoplay playsinline style="width: 45%; border: 1px solid black;"></video>
+  
+  <br/>
 
   <button id="startCall">Start Call (Create Offer)</button>
   <button id="answerCall">Answer Call (Create Answer)</button>
@@ -28,13 +33,13 @@
 
   <script>
     let pc = null;
+    let localStream = null;
     let localICECandidates = [];
 
-    const iceServers = [
-      { urls: "stun:stun.l.google.com:19302" }
-      // Add TURN servers here later if you get one
-    ];
+    const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
     const startCallBtn = document.getElementById('startCall');
     const answerCallBtn = document.getElementById('answerCall');
     const localSDPTextarea = document.getElementById('localSDP');
@@ -45,7 +50,7 @@
     const addRemoteICEBtn = document.getElementById('addRemoteICE');
     const statusSpan = document.getElementById('status');
 
-    function createPeerConnection() {
+    async function createPeerConnection() {
       pc = new RTCPeerConnection({ iceServers });
 
       pc.onicecandidate = event => {
@@ -59,18 +64,20 @@
         statusSpan.textContent = pc.connectionState;
       };
 
-      // For demo: create dummy data channel to start connection
-      const channel = pc.createDataChannel("chat");
-      channel.onopen = () => {
-        console.log("Data channel open");
+      pc.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
       };
-      channel.onmessage = e => {
-        console.log("Message from remote:", e.data);
-      };
+
+      // Get user media (audio + video)
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+
+      // Add all local tracks to peer connection
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     }
 
     startCallBtn.onclick = async () => {
-      createPeerConnection();
+      await createPeerConnection();
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -80,7 +87,7 @@
     };
 
     answerCallBtn.onclick = async () => {
-      createPeerConnection();
+      await createPeerConnection();
       statusSpan.textContent = "Waiting for remote SDP...";
     };
 
