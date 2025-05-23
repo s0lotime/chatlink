@@ -1,29 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Chatlink Video Call</title>
+  <title>Voice Call with Equalizer</title>
   <style>
     video {
       width: 45%;
       margin: 10px;
       border: 2px solid #444;
     }
+    canvas {
+      width: 90%;
+      height: 100px;
+      background-color: #111;
+      display: block;
+      margin: 20px auto;
+    }
   </style>
 </head>
 <body>
-  <h1>Chatlink WebRTC Call</h1>
+  <h1>Chatlink WebRTC Call with Equalizer</h1>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
-  <div>
-    <input id="targetId" placeholder="Target client ID" />
-    <button onclick="startCall()">Start Call</button>
-  </div>
+  <input id="targetId" placeholder="Target client ID" />
+  <button onclick="startCall()">Start Call</button>
+
+  <canvas id="equalizer"></canvas>
 
   <script>
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
+    const canvas = document.getElementById("equalizer");
+    const ctx = canvas.getContext("2d");
 
     const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
@@ -32,12 +41,21 @@
     let myId;
     let targetId;
 
+    // Audio context and analyser for equalizer
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let bufferLength;
+
     socket.addEventListener("open", async () => {
       console.log("WebSocket connected");
 
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // For voice-only, change to {audio: true}
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         localVideo.srcObject = localStream;
+
+        setupAudioAnalyser(localStream);
 
         peer = createPeer();
         localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
@@ -45,6 +63,40 @@
         console.error("Failed to get media:", err);
       }
     });
+
+    function setupAudioAnalyser(stream) {
+      audioContext = new AudioContext();
+      analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      analyser.fftSize = 256; // smaller = more bars but less detail
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      drawEqualizer();
+    }
+
+    function drawEqualizer() {
+      requestAnimationFrame(drawEqualizer);
+
+      analyser.getByteFrequencyData(dataArray);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const barWidth = (canvas.width / bufferLength) * 2.5;
+      let barHeight;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        barHeight = dataArray[i];
+
+        ctx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+        ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+
+        x += barWidth + 1;
+      }
+    }
 
     socket.addEventListener("message", async (event) => {
       const msg = JSON.parse(event.data);
@@ -57,7 +109,6 @@
 
       if (msg.type === "offer") {
         targetId = msg.from;
-        console.log("Received offer from:", targetId);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
@@ -65,13 +116,11 @@
       }
 
       if (msg.type === "answer") {
-        console.log("Received answer from:", msg.from);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
       }
 
       if (msg.type === "ice") {
         try {
-          console.log("Adding ICE candidate:", msg.payload);
           await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
         } catch (e) {
           console.error("Error adding ICE candidate:", e);
@@ -80,9 +129,7 @@
     });
 
     function sendMessage(to, type, payload) {
-      const message = { to, type, payload };
-      console.log("Sending:", message);
-      socket.send(JSON.stringify(message));
+      socket.send(JSON.stringify({ to, type, payload }));
     }
 
     function createPeer() {
@@ -92,30 +139,12 @@
 
       pc.onicecandidate = (event) => {
         if (event.candidate && targetId) {
-          console.log("Sending ICE candidate");
           sendMessage(targetId, "ice", event.candidate);
         }
       };
 
       pc.ontrack = (event) => {
-        console.log("Remote track received:", event.streams);
         remoteVideo.srcObject = event.streams[0];
-      };
-
-      pc.onconnectionstatechange = () => {
-  console.log("Connection state changed:", pc.connectionState);
-  if (pc.connectionState === "failed") {
-    console.warn("Connection failed.");
-    pc.getStats().then(stats => {
-      stats.forEach(report => {
-        console.log(`[${report.type}]`, report);
-      });
-    });
-  }
-};
-
-      pc.onsignalingstatechange = () => {
-        console.log("Signaling state:", pc.signalingState);
       };
 
       return pc;
@@ -128,14 +157,19 @@
         return;
       }
 
-      try {
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        sendMessage(targetId, "offer", offer);
-      } catch (e) {
-        console.error("Failed to start call:", e);
-      }
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      sendMessage(targetId, "offer", offer);
     }
+
+    // Resize canvas to match display size
+    function resizeCanvas() {
+      canvas.width = window.innerWidth * 0.9;
+      canvas.height = 100;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
   </script>
 </body>
 </html>
