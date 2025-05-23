@@ -8,6 +8,10 @@
       margin: 10px;
       border: 2px solid #444;
     }
+    /* Hidden video style */
+    .video-hidden {
+      display: none !important;
+    }
     canvas {
       width: 90%;
       height: 100px;
@@ -204,10 +208,18 @@
       }
     }
 
+    // Option 3: keep video track enabled but hide local video element
     function toggleVideo() {
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        document.getElementById("toggleVideo").textContent = `Video (${videoTrack.enabled ? "On" : "Off"})`;
+        // Instead of disabling videoTrack.enabled, keep it enabled
+        // and just hide or show the local video element
+        if (localVideo.classList.contains("video-hidden")) {
+          localVideo.classList.remove("video-hidden");
+          document.getElementById("toggleVideo").textContent = "Video (On)";
+        } else {
+          localVideo.classList.add("video-hidden");
+          document.getElementById("toggleVideo").textContent = "Video (Off)";
+        }
       }
     }
   </script>
