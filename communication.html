@@ -191,14 +191,14 @@
     function toggleAudio() {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
-        document.getElementById("toggleAudio").textContent = Audio (${audioTrack.enabled ? "On" : "Off"});
+        document.getElementById("toggleAudio").textContent = `Audio (${audioTrack.enabled ? "On" : "Off"})`;
       }
     }
 
     function toggleVideo() {
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
-        document.getElementById("toggleVideo").textContent = Video (${videoTrack.enabled ? "On" : "Off"});
+        document.getElementById("toggleVideo").textContent = `Video (${videoTrack.enabled ? "On" : "Off"})`;
       }
     }
   </script>
