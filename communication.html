@@ -32,186 +32,127 @@
   <canvas id="equalizer"></canvas>
 
   <script>
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
+  const localVideo = document.getElementById("localVideo");
+  const remoteVideo = document.getElementById("remoteVideo");
 
-    const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
+  const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
-    let localStream;
-    let peer;
-    let myId;
-    let targetId;
-    let audioTrack;
-    let videoTrack;
+  let localStream;
+  let peer;
+  let myId;
+  let targetId;
 
-    socket.addEventListener("open", async () => {
-      console.log("WebSocket connected");
+  socket.addEventListener("open", async () => {
+    console.log("WebSocket connected");
 
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localVideo.srcObject = localStream;
+
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+    } catch (err) {
+      console.error("Failed to get media:", err);
+    }
+  });
+
+  socket.addEventListener("message", async (event) => {
+    const msg = JSON.parse(event.data);
+    console.log("Message received:", msg);
+
+    if (msg.type === "welcome") {
+      myId = msg.id;
+      document.getElementById("idOutput").textContent = myId;
+      console.log("My ID:", myId);
+    }
+
+    if (msg.type === "offer") {
+      targetId = msg.from;
+      console.log("Received offer from:", targetId);
       try {
-        let userStream;
-        try {
-          userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } catch (err) {
-          console.warn("getUserMedia failed or device has no media:", err);
-          userStream = new MediaStream(); // fallback empty stream
-        }
-
-        const audioTracks = userStream.getAudioTracks();
-        const videoTracks = userStream.getVideoTracks();
-
-        // Use real audio track or create enabled silent audio track fallback
-        audioTrack = audioTracks[0] || createSilentAudioTrack();
-
-        // Use real video track or omit video track entirely (do NOT add disabled black video track)
-        videoTrack = videoTracks[0] || null;
-
-        // Build localStream with available tracks only
-        const tracks = [audioTrack];
-        if (videoTrack) tracks.push(videoTrack);
-
-        localStream = new MediaStream(tracks);
-        localVideo.srcObject = localStream;
-
-        // Disable buttons if no real tracks (not counting fallback silent audio)
-        document.getElementById("toggleAudio").disabled = audioTracks.length === 0;
-        document.getElementById("toggleVideo").disabled = videoTracks.length === 0;
-
-        // Create peer connection
-        peer = createPeer();
-
-        // Add tracks to peer connection
-        peer.addTrack(audioTrack, localStream);
-        if (videoTrack) peer.addTrack(videoTrack, localStream);
+        await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        sendMessage(targetId, "answer", answer);
       } catch (err) {
-        console.error("Failed to get any media:", err);
+        console.error("Error handling offer:", err);
       }
-    });
-
-    socket.addEventListener("message", async (event) => {
-      const msg = JSON.parse(event.data);
-      console.log("Message received:", msg);
-
-      if (msg.type === "welcome") {
-        myId = msg.id;
-        document.getElementById("idOutput").textContent = myId;
-        console.log("My ID:", myId);
-      }
-
-      if (msg.type === "offer") {
-        targetId = msg.from;
-        console.log("Received offer from:", targetId);
-        try {
-          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-          sendMessage(targetId, "answer", answer);
-        } catch (err) {
-          console.error("Error handling offer:", err);
-        }
-      }
-
-      if (msg.type === "answer") {
-        try {
-          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-        } catch (err) {
-          console.error("Error handling answer:", err);
-        }
-      }
-
-      if (msg.type === "ice") {
-        try {
-          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
-        } catch (e) {
-          console.error("Error adding ICE candidate:", e);
-        }
-      }
-    });
-
-    // Create a silent audio track with enabled = true (important!)
-    function createSilentAudioTrack() {
-      const ctx = new AudioContext();
-      const oscillator = ctx.createOscillator();
-      const dst = oscillator.connect(ctx.createMediaStreamDestination());
-      oscillator.start();
-      const track = dst.stream.getAudioTracks()[0];
-      return Object.assign(track, { enabled: true });
     }
 
-    // We no longer create a black video track fallback — omit video track if missing
-
-    function sendMessage(to, type, payload) {
-      const message = { to, type, payload };
-      console.log("Sending:", message);
-      socket.send(JSON.stringify(message));
-    }
-
-    function createPeer() {
-      const iceServers = [
-        {
-          urls: [
-            "stun:stun.cloudflare.com:3478",
-            "stun:stun.cloudflare.com:53"
-          ]
-        },
-        {
-          urls: [
-            "turn:turn.cloudflare.com:3478?transport=udp",
-            "turn:turn.cloudflare.com:3478?transport=tcp",
-            "turns:turn.cloudflare.com:5349?transport=tcp",
-            "turn:turn.cloudflare.com:53?transport=udp",
-            "turn:turn.cloudflare.com:80?transport=tcp",
-            "turns:turn.cloudflare.com:443?transport=tcp"
-          ],
-          username: "g06029b93cd518b42c38009ea2d357ed52ef1fba78330a81c283fda35ee71131",
-          credential: "98f92c527bea47961e372c68c6e2ae3234def2ea48947ca0fed5c2adf177567b"
-        }
-      ];
-
-      const pc = new RTCPeerConnection({ iceServers });
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && targetId) {
-          sendMessage(targetId, "ice", event.candidate);
-        }
-      };
-
-      pc.ontrack = (event) => {
-        if (!remoteVideo.srcObject) {
-    remoteVideo.srcObject = event.streams[0];
-  }
-      };
-
-      return pc;
-    }
-
-    async function startCall() {
-      targetId = document.getElementById("targetId").value.trim();
-      if (!targetId) {
-        alert("Please enter the target client ID");
-        return;
-      }
+    if (msg.type === "answer") {
       try {
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        sendMessage(targetId, "offer", offer);
-      } catch (e) {
-        console.error("Failed to start call:", e);
+        await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+      } catch (err) {
+        console.error("Error handling answer:", err);
       }
     }
 
-    function toggleAudio() {
-  if (audioTrack) {
-    audioTrack.enabled = !audioTrack.enabled;
-    document.getElementById("toggleAudio").textContent = `Audio (${audioTrack.enabled ? "On" : "Off"})`;
-  }
-}
+    if (msg.type === "ice") {
+      try {
+        await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
+      } catch (e) {
+        console.error("Error adding ICE candidate:", e);
+      }
+    }
+  });
 
-function toggleVideo() {
-  if (videoTrack) {
-    videoTrack.enabled = !videoTrack.enabled;
-    document.getElementById("toggleVideo").textContent = `Video (${videoTrack.enabled ? "On" : "Off"})`;
+  function sendMessage(to, type, payload) {
+    const message = { to, type, payload };
+    console.log("Sending:", message);
+    socket.send(JSON.stringify(message));
   }
-}
-  </script>
+
+  function createPeer() {
+    const iceServers = [
+      {
+        urls: [
+          "stun:stun.cloudflare.com:3478",
+          "stun:stun.cloudflare.com:53"
+        ]
+      },
+      {
+        urls: [
+          "turn:turn.cloudflare.com:3478?transport=udp",
+          "turn:turn.cloudflare.com:3478?transport=tcp",
+          "turns:turn.cloudflare.com:5349?transport=tcp",
+          "turn:turn.cloudflare.com:53?transport=udp",
+          "turn:turn.cloudflare.com:80?transport=tcp",
+          "turns:turn.cloudflare.com:443?transport=tcp"
+        ],
+        username: "g06029b93cd518b42c38009ea2d357ed52ef1fba78330a81c283fda35ee71131",
+        credential: "98f92c527bea47961e372c68c6e2ae3234def2ea48947ca0fed5c2adf177567b"
+      }
+    ];
+
+    const pc = new RTCPeerConnection({ iceServers });
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && targetId) {
+        sendMessage(targetId, "ice", event.candidate);
+      }
+    };
+
+    pc.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+    };
+
+    return pc;
+  }
+
+  async function startCall() {
+    targetId = document.getElementById("targetId").value.trim();
+    if (!targetId) {
+      alert("Please enter the target client ID");
+      return;
+    }
+    try {
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      sendMessage(targetId, "offer", offer);
+    } catch (e) {
+      console.error("Failed to start call:", e);
+    }
+  }
+</script>
 </body>
 </html>
