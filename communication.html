@@ -26,6 +26,8 @@
 
   <input id="targetId" placeholder="Target client ID" />
   <button onclick="startCall()">Start Call</button>
+  <button id="toggleAudio" onclick="toggleAudio()">Audio (On)</button>
+  <button id="toggleVideo" onclick="toggleVideo()">Video (On)</button>
 
   <canvas id="equalizer"></canvas>
 
@@ -47,6 +49,9 @@
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
 
+      audioTrack = localStream.getAudioTracks()[0];
+      videoTrack = localStream.getVideoTracks()[0];
+      
       peer = createPeer();
       localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     } catch (err) {
@@ -149,6 +154,20 @@
       sendMessage(targetId, "offer", offer);
     } catch (e) {
       console.error("Failed to start call:", e);
+    }
+  }
+
+    function toggleAudio() {
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      document.getElementById("toggleAudio").textContent = `Audio (${audioTrack.enabled ? "On" : "Off"})`;
+    }
+  }
+
+  function toggleVideo() {
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      document.getElementById("toggleVideo").textContent = `Video (${videoTrack.enabled ? "On" : "Off"})`;
     }
   }
 </script>
