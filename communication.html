@@ -103,11 +103,16 @@
       };
 
       pc.onconnectionstatechange = () => {
-        console.log("Connection state changed:", pc.connectionState);
-        if (pc.connectionState === "failed") {
-          console.warn("Connection failed.");
-        }
-      };
+  console.log("Connection state changed:", pc.connectionState);
+  if (pc.connectionState === "failed") {
+    console.warn("Connection failed.");
+    pc.getStats().then(stats => {
+      stats.forEach(report => {
+        console.log(`[${report.type}]`, report);
+      });
+    });
+  }
+};
 
       pc.onsignalingstatechange = () => {
         console.log("Signaling state:", pc.signalingState);
