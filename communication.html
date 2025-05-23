@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -61,7 +60,7 @@
 
     if (msg.type === "welcome") {
       myId = msg.id;
-      document.getElementById("idOutput").textContent = myId
+      document.getElementById("idOutput").textContent = myId;
       console.log("My ID:", myId);
     }
 
@@ -69,18 +68,9 @@
       targetId = msg.from;
       console.log("Received offer from:", targetId);
       try {
-        console.log("Signaling state before setRemoteDescription:", peer.signalingState);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-        console.log("Signaling state after setRemoteDescription:", peer.signalingState);
-
-        console.log("Signaling state before createAnswer:", peer.signalingState);
         const answer = await peer.createAnswer();
-        console.log("Signaling state after createAnswer:", peer.signalingState);
-
-        console.log("Signaling state before setLocalDescription:", peer.signalingState);
         await peer.setLocalDescription(answer);
-        console.log("Signaling state after setLocalDescription:", peer.signalingState);
-
         sendMessage(targetId, "answer", answer);
       } catch (err) {
         console.error("Error handling offer:", err);
@@ -89,10 +79,7 @@
 
     if (msg.type === "answer") {
       try {
-        console.log("Received answer from:", msg.from);
-        console.log("Signaling state before setRemoteDescription:", peer.signalingState);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-        console.log("Signaling state after setRemoteDescription:", peer.signalingState);
       } catch (err) {
         console.error("Error handling answer:", err);
       }
@@ -100,7 +87,6 @@
 
     if (msg.type === "ice") {
       try {
-        console.log("Adding ICE candidate:", msg.payload);
         await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
       } catch (e) {
         console.error("Error adding ICE candidate:", e);
@@ -115,36 +101,37 @@
   }
 
   function createPeer() {
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
+    const iceServers = [
+      {
+        urls: [
+          "stun:stun.cloudflare.com:3478",
+          "stun:stun.cloudflare.com:53"
+        ]
+      },
+      {
+        urls: [
+          "turn:turn.cloudflare.com:3478?transport=udp",
+          "turn:turn.cloudflare.com:3478?transport=tcp",
+          "turns:turn.cloudflare.com:5349?transport=tcp",
+          "turn:turn.cloudflare.com:53?transport=udp",
+          "turn:turn.cloudflare.com:80?transport=tcp",
+          "turns:turn.cloudflare.com:443?transport=tcp"
+        ],
+        username: "g06029b93cd518b42c38009ea2d357ed52ef1fba78330a81c283fda35ee71131",
+        credential: "98f92c527bea47961e372c68c6e2ae3234def2ea48947ca0fed5c2adf177567b"
+      }
+    ];
+
+    const pc = new RTCPeerConnection({ iceServers });
 
     pc.onicecandidate = (event) => {
       if (event.candidate && targetId) {
-        console.log("Sending ICE candidate");
         sendMessage(targetId, "ice", event.candidate);
       }
     };
 
     pc.ontrack = (event) => {
-      console.log("Remote track received:", event.streams);
       remoteVideo.srcObject = event.streams[0];
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log("Connection state changed:", pc.connectionState);
-      if (pc.connectionState === "failed") {
-        console.warn("Connection failed.");
-        pc.getStats().then(stats => {
-          stats.forEach(report => {
-            console.log(`[${report.type}]`, report);
-          });
-        });
-      }
-    };
-
-    pc.onsignalingstatechange = () => {
-      console.log("Signaling state:", pc.signalingState);
     };
 
     return pc;
@@ -156,7 +143,6 @@
       alert("Please enter the target client ID");
       return;
     }
-
     try {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
