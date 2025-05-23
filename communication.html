@@ -29,147 +29,139 @@
   <canvas id="equalizer"></canvas>
 
   <script>
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-    const canvas = document.getElementById("equalizer");
-    const ctx = canvas.getContext("2d");
+  const localVideo = document.getElementById("localVideo");
+  const remoteVideo = document.getElementById("remoteVideo");
 
-    const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
+  const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
-    let localStream;
-    let peer;
-    let myId;
-    let targetId;
+  let localStream;
+  let peer;
+  let myId;
+  let targetId;
 
-    // Audio context and analyser for equalizer
-    let audioContext;
-    let analyser;
-    let dataArray;
-    let bufferLength;
+  socket.addEventListener("open", async () => {
+    console.log("WebSocket connected");
 
-    socket.addEventListener("open", async () => {
-      console.log("WebSocket connected");
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+    } catch (err) {
+      console.error("Failed to get media:", err);
+    }
+  });
+
+  socket.addEventListener("message", async (event) => {
+    const msg = JSON.parse(event.data);
+    console.log("Message received:", msg);
+
+    if (msg.type === "welcome") {
+      myId = msg.id;
+      console.log("My ID:", myId);
+    }
+
+    if (msg.type === "offer") {
+      targetId = msg.from;
+      console.log("Received offer from:", targetId);
       try {
-        // For voice-only, change to {audio: true}
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        localVideo.srcObject = localStream;
-
-        setupAudioAnalyser(localStream);
-
-        peer = createPeer();
-        localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-      } catch (err) {
-        console.error("Failed to get media:", err);
-      }
-    });
-
-    function setupAudioAnalyser(stream) {
-      audioContext = new AudioContext();
-      analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-
-      analyser.fftSize = 256; // smaller = more bars but less detail
-      bufferLength = analyser.frequencyBinCount;
-      dataArray = new Uint8Array(bufferLength);
-
-      drawEqualizer();
-    }
-
-    function drawEqualizer() {
-      requestAnimationFrame(drawEqualizer);
-
-      analyser.getByteFrequencyData(dataArray);
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const barWidth = (canvas.width / bufferLength) * 2.5;
-      let barHeight;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        barHeight = dataArray[i];
-
-        ctx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
-        ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
-
-        x += barWidth + 1;
-      }
-    }
-
-    socket.addEventListener("message", async (event) => {
-      const msg = JSON.parse(event.data);
-      console.log("Message received:", msg);
-
-      if (msg.type === "welcome") {
-        myId = msg.id;
-        console.log("My ID:", myId);
-      }
-
-      if (msg.type === "offer") {
-        targetId = msg.from;
+        console.log("Signaling state before setRemoteDescription:", peer.signalingState);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        console.log("Signaling state after setRemoteDescription:", peer.signalingState);
+
+        console.log("Signaling state before createAnswer:", peer.signalingState);
         const answer = await peer.createAnswer();
+        console.log("Signaling state after createAnswer:", peer.signalingState);
+
+        console.log("Signaling state before setLocalDescription:", peer.signalingState);
         await peer.setLocalDescription(answer);
+        console.log("Signaling state after setLocalDescription:", peer.signalingState);
+
         sendMessage(targetId, "answer", answer);
+      } catch (err) {
+        console.error("Error handling offer:", err);
       }
+    }
 
-      if (msg.type === "answer") {
+    if (msg.type === "answer") {
+      try {
+        console.log("Received answer from:", msg.from);
+        console.log("Signaling state before setRemoteDescription:", peer.signalingState);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        console.log("Signaling state after setRemoteDescription:", peer.signalingState);
+      } catch (err) {
+        console.error("Error handling answer:", err);
       }
+    }
 
-      if (msg.type === "ice") {
-        try {
-          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
-        } catch (e) {
-          console.error("Error adding ICE candidate:", e);
-        }
+    if (msg.type === "ice") {
+      try {
+        console.log("Adding ICE candidate:", msg.payload);
+        await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
+      } catch (e) {
+        console.error("Error adding ICE candidate:", e);
       }
+    }
+  });
+
+  function sendMessage(to, type, payload) {
+    const message = { to, type, payload };
+    console.log("Sending:", message);
+    socket.send(JSON.stringify(message));
+  }
+
+  function createPeer() {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
     });
 
-    function sendMessage(to, type, payload) {
-      socket.send(JSON.stringify({ to, type, payload }));
-    }
-
-    function createPeer() {
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-      });
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && targetId) {
-          sendMessage(targetId, "ice", event.candidate);
-        }
-      };
-
-      pc.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
-      };
-
-      return pc;
-    }
-
-    async function startCall() {
-      targetId = document.getElementById("targetId").value.trim();
-      if (!targetId) {
-        alert("Please enter the target client ID");
-        return;
+    pc.onicecandidate = (event) => {
+      if (event.candidate && targetId) {
+        console.log("Sending ICE candidate");
+        sendMessage(targetId, "ice", event.candidate);
       }
+    };
 
+    pc.ontrack = (event) => {
+      console.log("Remote track received:", event.streams);
+      remoteVideo.srcObject = event.streams[0];
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log("Connection state changed:", pc.connectionState);
+      if (pc.connectionState === "failed") {
+        console.warn("Connection failed.");
+        pc.getStats().then(stats => {
+          stats.forEach(report => {
+            console.log(`[${report.type}]`, report);
+          });
+        });
+      }
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log("Signaling state:", pc.signalingState);
+    };
+
+    return pc;
+  }
+
+  async function startCall() {
+    targetId = document.getElementById("targetId").value.trim();
+    if (!targetId) {
+      alert("Please enter the target client ID");
+      return;
+    }
+
+    try {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       sendMessage(targetId, "offer", offer);
+    } catch (e) {
+      console.error("Failed to start call:", e);
     }
-
-    // Resize canvas to match display size
-    function resizeCanvas() {
-      canvas.width = window.innerWidth * 0.9;
-      canvas.height = 100;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-  </script>
+  }
+</script>
 </body>
 </html>
