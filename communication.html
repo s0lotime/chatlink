@@ -86,6 +86,8 @@
     let peer;
     let myId;
     let targetId;
+    let audioEnabled = true;
+    let videoEnabled = true;
 
     socket.addEventListener("open", async () => {
   console.log("WebSocket connected");
