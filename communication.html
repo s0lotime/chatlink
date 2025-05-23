@@ -47,30 +47,53 @@
     socket.addEventListener("open", async () => {
       console.log("WebSocket connected");
 
+      socket.addEventListener("open", async () => {
+  console.log("WebSocket connected");
+
+  try {
+    let userStream = new MediaStream();
+
+    // Try to get both audio and video, but fallback gracefully
+    try {
+      userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } catch (err) {
+      console.warn("getUserMedia with audio+video failed:", err);
       try {
-        let userStream;
+        userStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.warn("Only audio available.");
+      } catch (err2) {
+        console.warn("Audio also failed:", err2);
         try {
-          userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } catch (err) {
-          console.warn("getUserMedia failed or device has no media:", err);
+          userStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          console.warn("Only video available.");
+        } catch (err3) {
+          console.error("No media available at all:", err3);
           userStream = new MediaStream(); // fallback
         }
-
-        audioTrack = userStream.getAudioTracks()[0] || createSilentAudioTrack();
-        videoTrack = userStream.getVideoTracks()[0] || createBlackVideoTrack();
-
-        localStream = new MediaStream([audioTrack, videoTrack]);
-        localVideo.srcObject = localStream;
-
-        document.getElementById("toggleAudio").disabled = !userStream.getAudioTracks().length;
-        document.getElementById("toggleVideo").disabled = !userStream.getVideoTracks().length;
-
-        peer = createPeer();
-        peer.addTrack(audioTrack, localStream);
-        peer.addTrack(videoTrack, localStream);
-      } catch (err) {
-        console.error("Failed to get any media:", err);
       }
+    }
+
+    // Handle tracks (use dummy if not available)
+    const userAudio = userStream.getAudioTracks()[0];
+    const userVideo = userStream.getVideoTracks()[0];
+
+    audioTrack = userAudio || createSilentAudioTrack();
+    videoTrack = userVideo || createBlackVideoTrack();
+
+    localStream = new MediaStream([audioTrack, videoTrack]);
+    localVideo.srcObject = localStream;
+
+    document.getElementById("toggleAudio").disabled = !userAudio;
+    document.getElementById("toggleVideo").disabled = !userVideo;
+
+    peer = createPeer();
+    peer.addTrack(audioTrack, localStream);
+    peer.addTrack(videoTrack, localStream);
+  } catch (err) {
+    console.error("Failed to initialize media:", err);
+  }
+});
+
     });
 
     socket.addEventListener("message", async (event) => {
