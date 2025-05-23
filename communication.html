@@ -46,17 +46,44 @@
     console.log("WebSocket connected");
 
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-
-      audioTrack = localStream.getAudioTracks()[0];
-      videoTrack = localStream.getVideoTracks()[0];
-      
-      peer = createPeer();
-      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-    } catch (err) {
-      console.error("Failed to get media:", err);
+  const constraints = { audio: true, video: true };
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (err) {
+    // Try fallback if both fail together
+    console.warn("Both audio and video not available, trying separately...");
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      console.warn("Audio not available.");
     }
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (localStream) {
+        videoStream.getVideoTracks().forEach(track => localStream.addTrack(track));
+      } else {
+        localStream = videoStream;
+      }
+    } catch (e) {
+      console.warn("Video not available.");
+    }
+  }
+
+  if (localStream) {
+    localVideo.srcObject = localStream;
+
+    audioTrack = localStream.getAudioTracks()[0] || null;
+    videoTrack = localStream.getVideoTracks()[0] || null;
+
+    peer = createPeer();
+    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+  } else {
+    console.error("No media tracks available.");
+  }
+} catch (err) {
+  console.error("Failed to get any media:", err);
+}
+
   });
 
   socket.addEventListener("message", async (event) => {
