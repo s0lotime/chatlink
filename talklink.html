@@ -2,279 +2,260 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chatlink WebRTC Call with Dark Mode & Call Controls</title>
+  <title>Talklink - Chatlink Calling</title>
   <style>
-    /* Dark mode base */
     body {
       background-color: #121212;
-      color: #ddd;
+      color: #e0e0e0;
       font-family: Arial, sans-serif;
-      text-align: center;
       margin: 0;
       padding: 20px;
+      text-align: center;
     }
+
     h1 {
-      margin-bottom: 10px;
+      margin: 0.5em 0;
     }
+
     input, button {
-      font-size: 1rem;
       padding: 10px;
-      margin: 5px;
-      border-radius: 5px;
+      margin: 10px 5px;
       border: none;
-      outline: none;
+      border-radius: 5px;
+      background-color: #1e1e1e;
+      color: #e0e0e0;
+      font-size: 1em;
     }
-    input {
-      width: 200px;
+
+    input::placeholder {
+      color: #888;
     }
-    button {
-      cursor: pointer;
+
+    input:focus, button:focus {
+      outline: 2px solid #4caf50;
+    }
+
+    button:hover {
       background-color: #333;
-      color: #eee;
-      transition: background-color 0.3s ease;
+      cursor: pointer;
     }
-    button:hover:not(:disabled) {
-      background-color: #555;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    video, audio {
-      border: 2px solid #444;
-      border-radius: 8px;
-      margin: 10px;
-      background-color: black;
-    }
+
     video {
-      width: 40%;
-      height: auto;
-      vertical-align: middle;
+      width: 45%;
+      height: 350px;
+      margin: 10px;
+      border: 2px solid #444;
+      background-color: #000;
     }
-    audio {
-      width: 300px;
-      margin-top: 10px;
-    }
-    #equalizer {
+
+    canvas {
       width: 90%;
       height: 100px;
-      background-color: #222;
-      margin: 20px auto;
-      border-radius: 8px;
+      background-color: #111;
       display: block;
-    }
-    #incomingCall {
-      margin-top: 20px;
-      padding: 15px;
-      background-color: #282828;
-      border-radius: 10px;
-      display: none;
-    }
-    #incomingCall p {
-      font-size: 1.2rem;
-      margin-bottom: 10px;
-    }
-    /* Blinking ring alert */
-    @keyframes blink {
-      0%, 100% { color: #ff5555; }
-      50% { color: #ff0000; }
-    }
-    #incomingCall p.blink {
-      animation: blink 1s infinite;
-      font-weight: bold;
+      margin: 20px auto;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
-  <h1>Chatlink WebRTC Call</h1>
-  <h2 id="idOutput">My ID: ...</h2>
+  <h1>Talklink</h1>
+  <h1 id="idOutput">My ID is ...</h1>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
-  <audio id="remoteAudio" autoplay></audio>
 
   <br />
-
   <input id="targetId" placeholder="Target client ID" />
-  <button id="startCallBtn">Start Call</button>
-  <button id="toggleAudioBtn" disabled>Audio (On)</button>
-  <button id="toggleVideoBtn" disabled>Video (On)</button>
-  <button id="hangUpBtn" disabled>Hang Up</button>
+  <button onclick="startCall()">Start Call</button>
+  <button id="toggleAudio">Audio (On)</button>
+  <button id="toggleVideo">Video (On)</button>
 
   <canvas id="equalizer"></canvas>
 
-  <div id="incomingCall">
-    <p class="blink">Incoming call from <span id="callerId"></span></p>
-    <button id="acceptCallBtn">Accept</button>
-    <button id="declineCallBtn">Decline</button>
-  </div>
-
-  <audio id="ringtone" loop>
-    <source src="https://actions.google.com/sounds/v1/alarms/phone_alerts_and_rings.ogg" type="audio/ogg">
-  </audio>
-
   <script>
-    // Elements
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
-    const remoteAudio = document.getElementById("remoteAudio");
-    const targetIdInput = document.getElementById("targetId");
-    const startCallBtn = document.getElementById("startCallBtn");
-    const toggleAudioBtn = document.getElementById("toggleAudioBtn");
-    const toggleVideoBtn = document.getElementById("toggleVideoBtn");
-    const hangUpBtn = document.getElementById("hangUpBtn");
 
-    const incomingCallDiv = document.getElementById("incomingCall");
-    const callerIdSpan = document.getElementById("callerId");
-    const acceptCallBtn = document.getElementById("acceptCallBtn");
-    const declineCallBtn = document.getElementById("declineCallBtn");
+    const toggleAudioBtn = document.getElementById("toggleAudio");
+    const toggleVideoBtn = document.getElementById("toggleVideo");
 
-    const ringtone = document.getElementById("ringtone");
+    const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
-    let socket;
-    let peerConnection = null;
-    let localStream = null;
-    let myId = null;
-    let currentCallId = null;
-    let audioTrack = null;
-    let videoTrack = null;
+    let localStream;
+    let peer;
+    let myId;
+    let targetId;
 
-    // Initialize remote streams once to avoid duplicates
-    const remoteVideoStream = new MediaStream();
-    const remoteAudioStream = new MediaStream();
-    remoteVideo.srcObject = remoteVideoStream;
-    remoteAudio.srcObject = remoteAudioStream;
+    socket.addEventListener("open", async () => {
+  console.log("WebSocket connected");
 
-    function log(msg, ...args) {
-      console.log("[Chatlink]", msg, ...args);
+  async function checkMediaStatus() {
+    const status = {
+      micPermission: 'unknown',
+      camPermission: 'unknown',
+      hasAudio: false,
+      audioEnabled: false,
+      hasVideo: false,
+      videoEnabled: false,
+      error: null
+    };
+
+    try {
+      const micPerm = await navigator.permissions.query({ name: 'microphone' });
+      const camPerm = await navigator.permissions.query({ name: 'camera' });
+
+      status.micPermission = micPerm.state;
+      status.camPermission = camPerm.state;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+      const audioTracks = stream.getAudioTracks();
+      status.hasAudio = audioTracks.length > 0;
+      status.audioEnabled = audioTracks.some(t => t.enabled);
+
+      const videoTracks = stream.getVideoTracks();
+      status.hasVideo = videoTracks.length > 0;
+      status.videoEnabled = videoTracks.some(t => t.enabled);
+
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      status.error = err.name || err.message;
     }
 
-    // Setup WebSocket connection
-    function connectSocket() {
-      socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
+    console.log("Media Status:", status);
+    return status;
+  }
 
-      socket.addEventListener("open", async () => {
-        log("WebSocket connected");
-        await setupMedia();
-      });
+  const mediaStatus = await checkMediaStatus();
+  if (mediaStatus.error) {
+    console.error("Media error:", mediaStatus.error);
+  }
+  if (mediaStatus.micPermission !== "granted" || mediaStatus.camPermission !== "granted") {
+    console.warn("Permissions not granted for microphone and/or camera.");
+  }
 
-      socket.addEventListener("message", async (event) => {
-        const msg = JSON.parse(event.data);
-        log("Message received:", msg);
+  localStream = new MediaStream();
 
-        if (msg.type === "welcome") {
-          myId = msg.id;
-          document.getElementById("idOutput").textContent = `My ID: ${myId}`;
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
+  } catch (err) {
+    console.warn("Audio fetch failed:", err);
+  }
+
+  try {
+    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoStream.getVideoTracks().forEach(track => {
+      localStream.addTrack(track);
+    });
+  } catch (err) {
+    console.warn("Video fetch failed:", err);
+  }
+
+  if (localStream.getTracks().length === 0) {
+    console.error("No media tracks available. Aborting WebRTC setup.");
+    return;
+  }
+
+  localVideo.srcObject = localStream;
+
+  peer = createPeer();
+  localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+});
+
+
+    socket.addEventListener("message", async (event) => {
+      const msg = JSON.parse(event.data);
+      console.log("Message received:", msg);
+
+      if (msg.type === "welcome") {
+        myId = msg.id;
+        document.getElementById("idOutput").textContent = `My ID is ${myId}`;
+      }
+
+      if (msg.type === "offer") {
+        targetId = msg.from;
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          sendMessage(targetId, "answer", answer);
+        } catch (err) {
+          console.error("Error handling offer:", err);
         }
+      }
 
-        if (msg.type === "offer") {
-          if (currentCallId) {
-            // Already in a call, auto reject or ignore
-            log("Received offer while busy. Ignoring...");
-            sendMessage(msg.from, "reject", { reason: "busy" });
-            return;
-          }
-          currentCallId = msg.from;
-          callerIdSpan.textContent = currentCallId;
-          showIncomingCall(true);
-          playRingtone(true);
-
-          // Save remote SDP to be used if call accepted
-          window.incomingOffer = msg.payload;
+      if (msg.type === "answer") {
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        } catch (err) {
+          console.error("Error handling answer:", err);
         }
+      }
 
-        if (msg.type === "answer") {
-          if (!peerConnection) return;
-          try {
-            await peerConnection.setRemoteDescription(msg.payload); // Modern browsers accept plain object
-            log("Remote description set (answer)");
-          } catch (err) {
-            console.error("Error setting remote description (answer):", err);
-          }
+      if (msg.type === "ice") {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
+        } catch (e) {
+          console.error("Error adding ICE candidate:", e);
         }
+      }
+    });
 
-        if (msg.type === "ice") {
-          if (!peerConnection) return;
-          try {
-            await peerConnection.addIceCandidate(msg.payload);
-            log("ICE candidate added");
-          } catch (err) {
-            console.error("Error adding ICE candidate:", err);
-          }
-        }
+    async function checkMediaStatus() {
+  const status = {
+    micPermission: 'unknown',
+    camPermission: 'unknown',
+    hasAudio: false,
+    audioEnabled: false,
+    hasVideo: false,
+    videoEnabled: false,
+    error: null
+  };
 
-        if (msg.type === "reject") {
-          alert(`Call rejected by ${msg.from}. Reason: ${msg.payload.reason || "No reason"}`);
-          endCall();
-        }
-      });
+  try {
+    // Check permissions
+    const micPerm = await navigator.permissions.query({ name: 'microphone' });
+    const camPerm = await navigator.permissions.query({ name: 'camera' });
 
-      socket.addEventListener("close", () => {
-        log("WebSocket disconnected");
-        endCall();
-      });
-    }
+    status.micPermission = micPerm.state;
+    status.camPermission = camPerm.state;
 
-    // Send message via socket
+    // Try to get media stream
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+    // Check audio tracks
+    const audioTracks = stream.getAudioTracks();
+    status.hasAudio = audioTracks.length > 0;
+    status.audioEnabled = audioTracks.some(t => t.enabled);
+
+    // Check video tracks
+    const videoTracks = stream.getVideoTracks();
+    status.hasVideo = videoTracks.length > 0;
+    status.videoEnabled = videoTracks.some(t => t.enabled);
+
+    // Stop tracks after checking
+    stream.getTracks().forEach(track => track.stop());
+
+  } catch (err) {
+    status.error = err.name || err.message;
+  }
+
+  console.log("Media Status:", status);
+  return status;
+}
+
+
     function sendMessage(to, type, payload) {
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
-      const msg = { to, type, payload };
-      log("Sending:", msg);
-      socket.send(JSON.stringify(msg));
+      const message = { to, type, payload };
+      console.log("Sending:", message);
+      socket.send(JSON.stringify(message));
     }
 
-    // Create silent audio track fallback
-    function createSilentAudioTrack() {
-      const ctx = new AudioContext();
-      const oscillator = ctx.createOscillator();
-      const dst = oscillator.connect(ctx.createMediaStreamDestination());
-      oscillator.start();
-      const track = dst.stream.getAudioTracks()[0];
-      return Object.assign(track, { enabled: true });
-    }
-
-    // Setup media and peer connection
-    async function setupMedia() {
-      try {
-        const userStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        const audioTracks = userStream.getAudioTracks();
-        const videoTracks = userStream.getVideoTracks();
-
-        audioTrack = audioTracks[0] || createSilentAudioTrack();
-        videoTrack = videoTracks[0] || null;
-
-        const tracks = [audioTrack];
-        if (videoTrack) tracks.push(videoTrack);
-
-        localStream = new MediaStream(tracks);
-        localVideo.srcObject = localStream;
-
-        toggleAudioBtn.disabled = audioTracks.length === 0;
-        toggleVideoBtn.disabled = videoTracks.length === 0;
-
-        startCallBtn.disabled = false;
-
-      } catch (err) {
-        console.error("Error accessing media devices:", err);
-        alert("Could not access camera/microphone. Please check permissions.");
-      }
-    }
-
-    // Create new RTCPeerConnection if none exists
-    function createPeerConnection() {
-      if (peerConnection) {
-        log("Peer connection already exists, skipping creation.");
-        return;
-      }
-
+    function createPeer() {
       const iceServers = [
-        {
-          urls: [
-            "stun:stun.cloudflare.com:3478",
-            "stun:stun.cloudflare.com:53"
-          ]
-        },
+        { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] },
         {
           urls: [
             "turn:turn.cloudflare.com:3478?transport=udp",
@@ -289,184 +270,49 @@
         }
       ];
 
-      peerConnection = new RTCPeerConnection({ iceServers });
+      const pc = new RTCPeerConnection({ iceServers });
 
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate && currentCallId) {
-          sendMessage(currentCallId, "ice", event.candidate);
+      pc.onicecandidate = (event) => {
+        if (event.candidate && targetId) {
+          sendMessage(targetId, "ice", event.candidate);
         }
       };
 
-      peerConnection.ontrack = (event) => {
-        // Add track to proper remote stream (avoid duplicates)
-        if (event.track.kind === "video") {
-          if (![...remoteVideoStream.getTracks()].some(t => t.id === event.track.id)) {
-            remoteVideoStream.addTrack(event.track);
-          }
-        } else if (event.track.kind === "audio") {
-          if (![...remoteAudioStream.getTracks()].some(t => t.id === event.track.id)) {
-            remoteAudioStream.addTrack(event.track);
-          }
-        }
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
       };
 
-      peerConnection.onconnectionstatechange = () => {
-        log("Connection state:", peerConnection.connectionState);
-        if (peerConnection.connectionState === "disconnected" ||
-            peerConnection.connectionState === "failed" ||
-            peerConnection.connectionState === "closed") {
-          endCall();
-        }
-      };
-
-      // Add local tracks to peer connection if available
-      if (audioTrack) peerConnection.addTrack(audioTrack, localStream);
-      if (videoTrack) peerConnection.addTrack(videoTrack, localStream);
+      return pc;
     }
 
-    // Call flow controls
-
-    // Start outgoing call
     async function startCall() {
-      const targetId = targetIdInput.value.trim();
+      targetId = document.getElementById("targetId").value.trim();
       if (!targetId) {
         alert("Please enter the target client ID");
         return;
       }
-      if (currentCallId) {
-        alert("You are already in a call.");
-        return;
-      }
-      currentCallId = targetId;
-
-      createPeerConnection();
-
       try {
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        sendMessage(targetId, "offer", peerConnection.localDescription);
-
-        startCallBtn.disabled = true;
-        hangUpBtn.disabled = false;
-        toggleAudioBtn.disabled = false;
-        toggleVideoBtn.disabled = false;
-        showIncomingCall(false);
-
-        log("Call started to", targetId);
-      } catch (err) {
-        console.error("Error starting call:", err);
-        endCall();
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        sendMessage(targetId, "offer", offer);
+      } catch (e) {
+        console.error("Failed to start call:", e);
       }
     }
 
-    // Accept incoming call
-    async function acceptCall() {
-      if (!window.incomingOffer) {
-        alert("No incoming offer to accept");
-        return;
-      }
+    toggleAudioBtn.addEventListener("click", () => {
+      if (!localStream) return;
+      audioEnabled = !audioEnabled;
+      localStream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
+      toggleAudioBtn.textContent = `Audio (${audioEnabled ? "On" : "Off"})`;
+    });
 
-      createPeerConnection();
-
-      try {
-        await peerConnection.setRemoteDescription(window.incomingOffer);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        sendMessage(currentCallId, "answer", peerConnection.localDescription);
-
-        startCallBtn.disabled = true;
-        hangUpBtn.disabled = false;
-        toggleAudioBtn.disabled = false;
-        toggleVideoBtn.disabled = false;
-
-        showIncomingCall(false);
-        playRingtone(false);
-
-        window.incomingOffer = null;
-        log("Call accepted");
-      } catch (err) {
-        console.error("Error accepting call:", err);
-        endCall();
-      }
-    }
-
-    // Decline incoming call
-    function declineCall() {
-      if (currentCallId) {
-        sendMessage(currentCallId, "reject", { reason: "declined" });
-      }
-      window.incomingOffer = null;
-      currentCallId = null;
-      showIncomingCall(false);
-      playRingtone(false);
-    }
-
-    // End call
-    function endCall() {
-      if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-      }
-
-      // Remove all remote tracks
-      remoteVideoStream.getTracks().forEach(t => remoteVideoStream.removeTrack(t));
-      remoteAudioStream.getTracks().forEach(t => remoteAudioStream.removeTrack(t));
-
-      currentCallId = null;
-      startCallBtn.disabled = false;
-      hangUpBtn.disabled = true;
-      toggleAudioBtn.disabled = true;
-      toggleVideoBtn.disabled = true;
-
-      showIncomingCall(false);
-      playRingtone(false);
-
-      log("Call ended");
-    }
-
-    // Show/hide incoming call UI
-    function showIncomingCall(show) {
-      incomingCallDiv.style.display = show ? "block" : "none";
-      startCallBtn.disabled = show;
-      hangUpBtn.disabled = !show && currentCallId !== null;
-    }
-
-    // Play or stop ringtone
-    function playRingtone(play) {
-      if (play) {
-        ringtone.play().catch(() => { /* Autoplay blocked, ignore */ });
-      } else {
-        ringtone.pause();
-        ringtone.currentTime = 0;
-      }
-    }
-
-    // Toggle audio track enabled
-    function toggleAudio() {
-      if (!audioTrack) return;
-      audioTrack.enabled = !audioTrack.enabled;
-      toggleAudioBtn.textContent = `Audio (${audioTrack.enabled ? "On" : "Off"})`;
-    }
-
-    // Toggle video track enabled
-    function toggleVideo() {
-      if (!videoTrack) return;
-      videoTrack.enabled = !videoTrack.enabled;
-      toggleVideoBtn.textContent = `Video (${videoTrack.enabled ? "On" : "Off"})`;
-      localVideo.style.display = videoTrack.enabled ? "inline-block" : "none";
-    }
-
-    // Button listeners
-    startCallBtn.addEventListener("click", startCall);
-    acceptCallBtn.addEventListener("click", acceptCall);
-    declineCallBtn.addEventListener("click", declineCall);
-    hangUpBtn.addEventListener("click", endCall);
-    toggleAudioBtn.addEventListener("click", toggleAudio);
-    toggleVideoBtn.addEventListener("click", toggleVideo);
-
-    // Initialize
-    connectSocket();
+    toggleVideoBtn.addEventListener("click", () => {
+      if (!localStream) return;
+      videoEnabled = !videoEnabled;
+      localStream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
+      toggleVideoBtn.textContent = `Video (${videoEnabled ? "On" : "Off"})`;
+    });
   </script>
 </body>
 </html>
