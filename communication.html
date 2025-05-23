@@ -53,21 +53,35 @@
           userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         } catch (err) {
           console.warn("getUserMedia failed or device has no media:", err);
-          userStream = new MediaStream(); // fallback
+          userStream = new MediaStream(); // fallback empty stream
         }
 
-        audioTrack = userStream.getAudioTracks()[0] || createSilentAudioTrack();
-        videoTrack = userStream.getVideoTracks()[0] || createBlackVideoTrack();
+        const audioTracks = userStream.getAudioTracks();
+        const videoTracks = userStream.getVideoTracks();
 
-        localStream = new MediaStream([audioTrack, videoTrack]);
+        // Use real audio track or create enabled silent audio track fallback
+        audioTrack = audioTracks[0] || createSilentAudioTrack();
+
+        // Use real video track or omit video track entirely (do NOT add disabled black video track)
+        videoTrack = videoTracks[0] || null;
+
+        // Build localStream with available tracks only
+        const tracks = [audioTrack];
+        if (videoTrack) tracks.push(videoTrack);
+
+        localStream = new MediaStream(tracks);
         localVideo.srcObject = localStream;
 
-        document.getElementById("toggleAudio").disabled = !userStream.getAudioTracks().length;
-        document.getElementById("toggleVideo").disabled = !userStream.getVideoTracks().length;
+        // Disable buttons if no real tracks (not counting fallback silent audio)
+        document.getElementById("toggleAudio").disabled = audioTracks.length === 0;
+        document.getElementById("toggleVideo").disabled = videoTracks.length === 0;
 
+        // Create peer connection
         peer = createPeer();
+
+        // Add tracks to peer connection
         peer.addTrack(audioTrack, localStream);
-        peer.addTrack(videoTrack, localStream);
+        if (videoTrack) peer.addTrack(videoTrack, localStream);
       } catch (err) {
         console.error("Failed to get any media:", err);
       }
@@ -113,22 +127,17 @@
       }
     });
 
+    // Create a silent audio track with enabled = true (important!)
     function createSilentAudioTrack() {
       const ctx = new AudioContext();
       const oscillator = ctx.createOscillator();
       const dst = oscillator.connect(ctx.createMediaStreamDestination());
       oscillator.start();
       const track = dst.stream.getAudioTracks()[0];
-      return Object.assign(track, { enabled: false });
+      return Object.assign(track, { enabled: true });
     }
 
-    function createBlackVideoTrack({ width = 640, height = 480 } = {}) {
-      const canvas = Object.assign(document.createElement("canvas"), { width, height });
-      canvas.getContext("2d").fillRect(0, 0, width, height);
-      const stream = canvas.captureStream();
-      const track = stream.getVideoTracks()[0];
-      return Object.assign(track, { enabled: false });
-    }
+    // We no longer create a black video track fallback — omit video track if missing
 
     function sendMessage(to, type, payload) {
       const message = { to, type, payload };
