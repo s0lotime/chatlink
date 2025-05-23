@@ -52,7 +52,7 @@
 
       try {
         // For voice-only, change to {audio: true}
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         localVideo.srcObject = localStream;
 
         setupAudioAnalyser(localStream);
