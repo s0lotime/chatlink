@@ -2,6 +2,13 @@
 <html>
 <head>
   <title>Chatlink Video Call</title>
+  <style>
+    video {
+      width: 45%;
+      margin: 10px;
+      border: 2px solid #444;
+    }
+  </style>
 </head>
 <body>
   <h1>Chatlink WebRTC Call</h1>
@@ -9,8 +16,10 @@
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
-  <input id="targetId" placeholder="Target client ID" />
-  <button onclick="startCall()">Start Call</button>
+  <div>
+    <input id="targetId" placeholder="Target client ID" />
+    <button onclick="startCall()">Start Call</button>
+  </div>
 
   <script>
     const localVideo = document.getElementById("localVideo");
@@ -26,16 +35,20 @@
     socket.addEventListener("open", async () => {
       console.log("WebSocket connected");
 
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
 
-      peer = createPeer();
-      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+        peer = createPeer();
+        localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+      } catch (err) {
+        console.error("Failed to get media:", err);
+      }
     });
 
     socket.addEventListener("message", async (event) => {
       const msg = JSON.parse(event.data);
-      console.log("Message:", msg);
+      console.log("Message received:", msg);
 
       if (msg.type === "welcome") {
         myId = msg.id;
@@ -44,6 +57,7 @@
 
       if (msg.type === "offer") {
         targetId = msg.from;
+        console.log("Received offer from:", targetId);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
@@ -51,11 +65,13 @@
       }
 
       if (msg.type === "answer") {
+        console.log("Received answer from:", msg.from);
         await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
       }
 
       if (msg.type === "ice") {
         try {
+          console.log("Adding ICE candidate:", msg.payload);
           await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
         } catch (e) {
           console.error("Error adding ICE candidate:", e);
@@ -64,24 +80,37 @@
     });
 
     function sendMessage(to, type, payload) {
-      socket.send(JSON.stringify({ to, type, payload }));
+      const message = { to, type, payload };
+      console.log("Sending:", message);
+      socket.send(JSON.stringify(message));
     }
 
     function createPeer() {
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" }
-        ]
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
 
       pc.onicecandidate = (event) => {
         if (event.candidate && targetId) {
+          console.log("Sending ICE candidate");
           sendMessage(targetId, "ice", event.candidate);
         }
       };
 
       pc.ontrack = (event) => {
+        console.log("Remote track received:", event.streams);
         remoteVideo.srcObject = event.streams[0];
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log("Connection state changed:", pc.connectionState);
+        if (pc.connectionState === "failed") {
+          console.warn("Connection failed.");
+        }
+      };
+
+      pc.onsignalingstatechange = () => {
+        console.log("Signaling state:", pc.signalingState);
       };
 
       return pc;
@@ -89,11 +118,18 @@
 
     async function startCall() {
       targetId = document.getElementById("targetId").value.trim();
-      if (!targetId) return alert("Enter target ID");
+      if (!targetId) {
+        alert("Please enter the target client ID");
+        return;
+      }
 
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      sendMessage(targetId, "offer", offer);
+      try {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        sendMessage(targetId, "offer", offer);
+      } catch (e) {
+        console.error("Failed to start call:", e);
+      }
     }
   </script>
 </body>
