@@ -42,7 +42,7 @@
     let myId;
     let targetId;
     let incomingOffer = null;
-    let remoteCandidatesQueue = []; // queue ICE candidates until remote description is set
+    let remoteCandidatesQueue = [];
 
     async function checkMediaStatus() {
       const status = {
@@ -185,15 +185,13 @@
 
         callerIdSpan.textContent = targetId;
         incomingCallBanner.style.display = "block";
-
-        // Create peer if doesn't exist
+        
         if (!peer) {
           peer = createPeer();
         }
 
         try {
           await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-          // Queue ICE candidates but DO NOT send answer yet, wait for user acceptance
           remoteCandidatesQueue.forEach(async candidate => {
             try {
               await peer.addIceCandidate(candidate);
@@ -218,9 +216,8 @@
             }
           });
           remoteCandidatesQueue = [];
-
-          // Show remote video and controls on call acceptance
-          remoteVideo.style.display = "block";
+          
+          remoteVideo.style.display = "inline";
           toggleAudioBtn.style.display = "inline-block";
           toggleVideoBtn.style.display = "inline-block";
 
@@ -269,7 +266,7 @@
     await peer.setLocalDescription(answer);
     sendMessage(targetId, "answer", answer);
 
-    remoteVideo.style.display = "block";
+    remoteVideo.style.display = "inline";
     toggleAudioBtn.style.display = "inline-block";
     toggleVideoBtn.style.display = "inline-block";
 
