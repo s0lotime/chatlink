@@ -56,9 +56,33 @@
       margin: 20px auto;
       border-radius: 5px;
     }
+
+    #incomingCall {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2ecc71;
+  color: white;
+  padding: 15px 30px;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  font-size: 1.2em;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+#incomingCall.show {
+  display: block;
+  opacity: 1;
+}
+
   </style>
 </head>
 <body>
+  <div id="incomingCall" style="display: none;">
+    Incoming call...
+  </div>
   <h1>Talklink</h1>
   <h1 id="idOutput">My ID is ...</h1>
 
@@ -90,6 +114,17 @@
 
     socket.addEventListener("open", async () => {
   console.log("WebSocket connected");
+
+      function showIncomingCall() {
+  const banner = document.getElementById("incomingCall");
+  banner.classList.add("show");
+
+  setTimeout(() => {
+    banner.classList.remove("show");
+    setTimeout(() => banner.style.display = "none", 300); // Hide after fade-out
+  }, 5000); // Display for 5 seconds
+}
+
 
   async function checkMediaStatus() {
     const status = {
@@ -177,6 +212,8 @@
 
       if (msg.type === "offer") {
         targetId = msg.from;
+        showIncomingCall()
+        
         try {
           await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
           const answer = await peer.createAnswer();
