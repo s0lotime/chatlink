@@ -250,28 +250,55 @@
     });
 
     acceptCallBtn.onclick = async () => {
-      incomingCallBanner.style.display = "none";
+  incomingCallBanner.style.display = "none";
 
-      if (!peer) {
-        peer = createPeer();
-        localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-      }
+  try {
+    // Get media from user
+    localStream = new MediaStream();
 
-      try {
-        await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+    try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
+    } catch (err) {
+      console.warn("Audio fetch failed:", err);
+    }
 
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        sendMessage(targetId, "answer", answer);
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoStream.getVideoTracks().forEach(track => localStream.addTrack(track));
+    } catch (err) {
+      console.warn("Video fetch failed:", err);
+    }
 
-        remoteVideo.style.display = "inline";
-        toggleAudioBtn.style.display = "inline-block";
-        toggleVideoBtn.style.display = "inline-block";
+    if (localStream.getTracks().length === 0) {
+      console.error("No media tracks available. Aborting answer.");
+      return;
+    }
 
-      } catch (err) {
-        console.error("Error accepting call:", err);
-      }
-    };
+    localVideo.srcObject = localStream;
+
+    if (!peer) {
+      peer = createPeer();
+    }
+
+    // Add local tracks to the peer connection
+    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+
+    await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+    sendMessage(targetId, "answer", answer);
+
+    remoteVideo.style.display = "inline";
+    toggleAudioBtn.style.display = "inline-block";
+    toggleVideoBtn.style.display = "inline-block";
+
+  } catch (err) {
+    console.error("Error accepting call:", err);
+  }
+};
+
 
     declineCallBtn.onclick = () => {
       incomingCallBanner.style.display = "none";
