@@ -174,7 +174,7 @@
       const msg = JSON.parse(event.data);
       console.log("Message received:", msg);
 
-      if (msg.type === "init") {
+      if (msg.type === "welcome") {
         myId = msg.payload;
         document.getElementById("idOutput").textContent = "My ID is " + myId;
       }
