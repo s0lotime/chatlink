@@ -1,438 +1,287 @@
 <!DOCTYPE html>
 <html lang="en">
-   <head>
-      <meta charset="UTF-8" />
-      <title>Talklink - Chatlink Calling</title>
-      <style>
-         body {
-         background-color: #121212;
-         color: #e0e0e0;
-         font-family: Arial, sans-serif;
-         margin: 0;
-         padding: 20px;
-         text-align: center;
-         }
-         h1 {
-         margin: 0.5em 0;
-         }
-         input, button {
-         padding: 10px;
-         margin: 10px 5px;
-         border: none;
-         border-radius: 5px;
-         background-color: #1e1e1e;
-         color: #e0e0e0;
-         font-size: 1em;
-         }
-         input::placeholder {
-         color: #888;
-         }
-         input:focus, button:focus {
-         outline: 2px solid #4caf50;
-         }
-         button:hover {
-         background-color: #333;
-         cursor: pointer;
-         }
-         video {
-         width: 45%;
-         height: 350px;
-         margin: 10px;
-         border: 2px solid #444;
-         background-color: #000;
-         }
-         canvas {
-         width: 90%;
-         height: 100px;
-         background-color: #111;
-         display: block;
-         margin: 20px auto;
-         border-radius: 5px;
-         }
-         #incomingCall {
-         position: fixed;
-         top: 20px;
-         left: 50%;
-         transform: translateX(-50%);
-         background-color: #2ecc71;
-         color: white;
-         padding: 15px 30px;
-         border-radius: 20px;
-         box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-         font-size: 1.2em;
-         z-index: 1000;
-         opacity: 0;
-         transition: opacity 0.3s ease-in-out;
-         }
-         #incomingCall.show {
-         display: block;
-         opacity: 1;
-         }
-         #incomingCallBanner {
-         display: none;
-         position: fixed;
-         top: 10px;
-         left: 50%;
-         transform: translateX(-50%);
-         background-color: #2e7d32;
-         color: white;
-         padding: 15px 25px;
-         border-radius: 12px;
-         font-size: 1.2em;
-         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-         animation: fadeIn 0.4s ease forwards;
-         z-index: 1000;
-         }
-         @keyframes fadeIn {
-         from { opacity: 0; top: 0px; }
-         to { opacity: 1; top: 10px; }
-         }
-      </style>
-   </head>
-   <body>
-      <div id="incomingCallBanner">📞 Incoming Call...</div>
-      <h1>Talklink</h1>
-      <h1 id="idOutput">My ID is ...</h1>
-      <video id="localVideo" autoplay playsinline muted></video>
-      <video id="remoteVideo" autoplay playsinline></video>
-      <br />
-      <input id="targetId" placeholder="Target client ID" />
-      <button onclick="startCall()">Start Call</button>
-      <button style="display: none" id="toggleAudio">Audio (On)</button>
-      <button style="display: none" id="toggleVideo">Video (On)</button>
-      <canvas id="equalizer"></canvas>
-      <h2>Welcome to Talklink! Talklink sounds exactly how it is, it's a way to talk to friends in realtime through voice or video. Right now, Talklink works on an id exchange system. Ids are unique and change on reload of the page. To call someone, ask for their id either through Chatlink rooms or other source and you can talk to them! As for the numbers, only two-user calls are allowed, this will be expanded upon soon. For now, talk!</h2>
-      <script>
-         const localVideo = document.getElementById("localVideo");
-         const remoteVideo = document.getElementById("remoteVideo");
-         
-         const toggleAudioBtn = document.getElementById("toggleAudio");
-         const toggleVideoBtn = document.getElementById("toggleVideo");
-         
-         const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
-         
-         let localStream;
-         let peer;
-         let myId;
-         let targetId;
-         
-         socket.addEventListener("open", async () => {
-         
-         async function checkMediaStatus() {
-         const status = {
-           micPermission: 'unknown',
-           camPermission: 'unknown',
-           hasAudio: false,
-           audioEnabled: false,
-           hasVideo: false,
-           videoEnabled: false,
-           error: null
-         };
-         
-         try {
-           const micPerm = await navigator.permissions.query({ name: 'microphone' });
-           const camPerm = await navigator.permissions.query({ name: 'camera' });
-         
-           status.micPermission = micPerm.state;
-           status.camPermission = camPerm.state;
-         
-           const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-         
-           const audioTracks = stream.getAudioTracks();
-           status.hasAudio = audioTracks.length > 0;
-           status.audioEnabled = audioTracks.some(t => t.enabled);
-         
-           const videoTracks = stream.getVideoTracks();
-           status.hasVideo = videoTracks.length > 0;
-           status.videoEnabled = videoTracks.some(t => t.enabled);
-         
-           stream.getTracks().forEach(track => track.stop());
-         } catch (err) {
-           status.error = err.name || err.message;
-         }
-         
-         console.log("Media Status:", status);
-         return status;
-         }
-         
-         const mediaStatus = await checkMediaStatus();
-         if (mediaStatus.error) {
-         console.error("Media error:", mediaStatus.error);
-         }
-         if (mediaStatus.micPermission !== "granted" || mediaStatus.camPermission !== "granted") {
-         console.warn("Permissions not granted for microphone and/or camera.");
-         }
-         
-         localStream = new MediaStream();
-         
-         try {
-         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-         audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
-         } catch (err) {
-         console.warn("Audio fetch failed:", err);
-         }
-         
-         try {
-         const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-         videoStream.getVideoTracks().forEach(track => {
-           localStream.addTrack(track);
-         });
-         } catch (err) {
-         console.warn("Video fetch failed:", err);
-         }
-         
-         if (localStream.getTracks().length === 0) {
-         console.error("No media tracks available. Aborting WebRTC setup.");
-         return;
-         }
-         
-         localVideo.srcObject = localStream;
-         
-         peer = createPeer();
-         localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-         }
-         
-         
-         async function checkMediaStatus() {
-         const status = {
-           micPermission: 'unknown',
-           camPermission: 'unknown',
-           hasAudio: false,
-           audioEnabled: false,
-           hasVideo: false,
-           videoEnabled: false,
-           error: null
-         };
-         
-         try {
-           const micPerm = await navigator.permissions.query({ name: 'microphone' });
-           const camPerm = await navigator.permissions.query({ name: 'camera' });
-         
-           status.micPermission = micPerm.state;
-           status.camPermission = camPerm.state;
-         
-           const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-         
-           const audioTracks = stream.getAudioTracks();
-           status.hasAudio = audioTracks.length > 0;
-           status.audioEnabled = audioTracks.some(t => t.enabled);
-         
-           const videoTracks = stream.getVideoTracks();
-           status.hasVideo = videoTracks.length > 0;
-           status.videoEnabled = videoTracks.some(t => t.enabled);
-         
-           stream.getTracks().forEach(track => track.stop());
-         } catch (err) {
-           status.error = err.name || err.message;
-         }
-         
-         console.log("Media Status:", status);
-         return status;
-         }
-         
-         const mediaStatus = await checkMediaStatus();
-         if (mediaStatus.error) {
-         console.error("Media error:", mediaStatus.error);
-         }
-         if (mediaStatus.micPermission !== "granted" || mediaStatus.camPermission !== "granted") {
-         console.warn("Permissions not granted for microphone and/or camera.");
-         }
-         
-         localStream = new MediaStream();
-         
-         try {
-         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-         audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
-         } catch (err) {
-         console.warn("Audio fetch failed:", err);
-         }
-         
-         try {
-         const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-         videoStream.getVideoTracks().forEach(track => {
-           localStream.addTrack(track);
-         });
-         } catch (err) {
-         console.warn("Video fetch failed:", err);
-         }
-         
-         if (localStream.getTracks().length === 0) {
-         console.error("No media tracks available. Aborting WebRTC setup.");
-         return;
-         }
-         
-         localVideo.srcObject = localStream;
-         
-         peer = createPeer();
-         localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-         });
-         
-         
-         socket.addEventListener("message", async (event) => {
-           const msg = JSON.parse(event.data);
-           console.log("Message received:", msg);
-         
-           if (msg.type === "welcome") {
-             myId = msg.id;
-             document.getElementById("idOutput").textContent = `My ID is ${myId}`;
-           }
-         
-           if (msg.type === "offer") {
-             targetId = msg.from;
-             showIncomingCall()
-             
-             try {
-               await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-               const answer = await peer.createAnswer();
-               await peer.setLocalDescription(answer);
-               sendMessage(targetId, "answer", answer);
-             } catch (err) {
-               console.error("Error handling offer:", err);
-             }
-           }
-         
-           if (msg.type === "answer") {
-             try {
-               await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-             } catch (err) {
-               console.error("Error handling answer:", err);
-             }
-           }
-         
-           if (msg.type === "ice") {
-             try {
-               await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
-             } catch (e) {
-               console.error("Error adding ICE candidate:", e);
-             }
-           }
-         });
-         
-         async function checkMediaStatus() {
-         const status = {
-         micPermission: 'unknown',
-         camPermission: 'unknown',
-         hasAudio: false,
-         audioEnabled: false,
-         hasVideo: false,
-         videoEnabled: false,
-         error: null
-         };
-         
-         try {
-         // Check permissions
-         const micPerm = await navigator.permissions.query({ name: 'microphone' });
-         const camPerm = await navigator.permissions.query({ name: 'camera' });
-         
-         status.micPermission = micPerm.state;
-         status.camPermission = camPerm.state;
-         
-         // Try to get media stream
-         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-         
-         // Check audio tracks
-         const audioTracks = stream.getAudioTracks();
-         status.hasAudio = audioTracks.length > 0;
-         status.audioEnabled = audioTracks.some(t => t.enabled);
-         
-         // Check video tracks
-         const videoTracks = stream.getVideoTracks();
-         status.hasVideo = videoTracks.length > 0;
-         status.videoEnabled = videoTracks.some(t => t.enabled);
-         
-         // Stop tracks after checking
-         stream.getTracks().forEach(track => track.stop());
-         
-         } catch (err) {
-         status.error = err.name || err.message;
-         }
-         
-         console.log("Media Status:", status);
-         return status;
-         }
-         
-         
-         function sendMessage(to, type, payload) {
-           const message = { to, type, payload };
-           console.log("Sending:", message);
-           socket.send(JSON.stringify(message));
-         }
-         
-         function createPeer() {
-           const iceServers = [
-             { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] },
-             {
-               urls: [
-                 "turn:turn.cloudflare.com:3478?transport=udp",
-                 "turn:turn.cloudflare.com:3478?transport=tcp",
-                 "turns:turn.cloudflare.com:5349?transport=tcp",
-                 "turn:turn.cloudflare.com:53?transport=udp",
-                 "turn:turn.cloudflare.com:80?transport=tcp",
-                 "turns:turn.cloudflare.com:443?transport=tcp"
-               ],
-               username: "g06029b93cd518b42c38009ea2d357ed52ef1fba78330a81c283fda35ee71131",
-               credential: "98f92c527bea47961e372c68c6e2ae3234def2ea48947ca0fed5c2adf177567b"
-             }
-           ];
-         
-           const pc = new RTCPeerConnection({ iceServers });
-         
-           pc.onicecandidate = (event) => {
-             if (event.candidate && targetId) {
-               sendMessage(targetId, "ice", event.candidate);
-             }
-           };
-         
-           pc.ontrack = (event) => {
-             remoteVideo.srcObject = event.streams[0];
-           };
-         
-           return pc;
-         }
-         
-         async function startCall() {
-         targetId = document.getElementById("targetId").value.trim();
-         if (!targetId) {
-         alert("Please enter the target client ID");
-         return;
-         }
-         
-         peer = createPeer();
-         localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-         
-         try {
-         const offer = await peer.createOffer();
-         await peer.setLocalDescription(offer);
-         sendMessage(targetId, "offer", offer);
-         } catch (err) {
-         console.error("Error starting call:", err);
-         }
-         }
-         
-         
-         function showIncomingCall() {
-         const banner = document.getElementById("incomingCallBanner");
-         banner.style.display = "block";
-         
-         // Optional auto-hide after 5 seconds
-         setTimeout(() => {
-           banner.style.display = "none";
-         }, 5000);
-         }
-         
-         toggleAudioBtn.addEventListener("click", () => {
-           if (!localStream) return;
-           audioEnabled = !audioEnabled;
-           localStream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
-           toggleAudioBtn.textContent = `Audio (${audioEnabled ? "On" : "Off"})`;
-         });
-         
-         toggleVideoBtn.addEventListener("click", () => {
-           if (!localStream) return;
-           videoEnabled = !videoEnabled;
-           localStream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
-           toggleVideoBtn.textContent = `Video (${videoEnabled ? "On" : "Off"})`;
-         });
-      </script>
-   </body>
+<head>
+  <meta charset="UTF-8" />
+  <title>Talklink - Chatlink Calling</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      margin: 0.5em 0;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 5px;
+      background-color: #1e1e1e;
+      color: #e0e0e0;
+      font-size: 1em;
+    }
+    input::placeholder {
+      color: #888;
+    }
+    input:focus, button:focus {
+      outline: 2px solid #4caf50;
+    }
+    button:hover {
+      background-color: #333;
+      cursor: pointer;
+    }
+    video {
+      width: 45%;
+      height: 350px;
+      margin: 10px;
+      border: 2px solid #444;
+      background-color: #000;
+    }
+    canvas {
+      width: 90%;
+      height: 100px;
+      background-color: #111;
+      display: block;
+      margin: 20px auto;
+      border-radius: 5px;
+    }
+    #incomingCall {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #2ecc71;
+      color: white;
+      padding: 15px 30px;
+      border-radius: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      font-size: 1.2em;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+    #incomingCall.show {
+      display: block;
+      opacity: 1;
+    }
+    #incomingCallBanner {
+      display: none;
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #2e7d32;
+      color: white;
+      padding: 15px 25px;
+      border-radius: 12px;
+      font-size: 1.2em;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      animation: fadeIn 0.4s ease forwards;
+      z-index: 1000;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; top: 0px; }
+      to { opacity: 1; top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="incomingCallBanner">📞 Incoming Call...</div>
+  <h1>Talklink</h1>
+  <h1 id="idOutput">My ID is ...</h1>
+  <video id="localVideo" autoplay playsinline muted></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+  <br />
+  <input id="targetId" placeholder="Target client ID" />
+  <button onclick="startCall()">Start Call</button>
+  <button style="display: none" id="toggleAudio">Audio (On)</button>
+  <button style="display: none" id="toggleVideo">Video (On)</button>
+  <canvas id="equalizer"></canvas>
+  <h2>
+    Welcome to Talklink! Talklink sounds exactly how it is — a way to talk to friends in realtime through voice or video. Right now, Talklink works on an ID exchange system. IDs are unique and change on reload of the page. To call someone, ask for their ID through Chatlink rooms or another source. Only two-user calls are allowed currently.
+  </h2>
+
+  <script>
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    const toggleAudioBtn = document.getElementById("toggleAudio");
+    const toggleVideoBtn = document.getElementById("toggleVideo");
+    const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
+
+    let localStream;
+    let peer;
+    let myId;
+    let targetId;
+
+    async function checkMediaStatus() {
+      const status = {
+        micPermission: 'unknown',
+        camPermission: 'unknown',
+        hasAudio: false,
+        audioEnabled: false,
+        hasVideo: false,
+        videoEnabled: false,
+        error: null
+      };
+
+      try {
+        const micPerm = await navigator.permissions.query({ name: 'microphone' });
+        const camPerm = await navigator.permissions.query({ name: 'camera' });
+
+        status.micPermission = micPerm.state;
+        status.camPermission = camPerm.state;
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        const audioTracks = stream.getAudioTracks();
+        status.hasAudio = audioTracks.length > 0;
+        status.audioEnabled = audioTracks.some(t => t.enabled);
+
+        const videoTracks = stream.getVideoTracks();
+        status.hasVideo = videoTracks.length > 0;
+        status.videoEnabled = videoTracks.some(t => t.enabled);
+
+        stream.getTracks().forEach(track => track.stop());
+      } catch (err) {
+        status.error = err.name || err.message;
+      }
+
+      console.log("Media Status:", status);
+      return status;
+    }
+
+    function sendMessage(to, type, payload) {
+      const message = { to, type, payload };
+      console.log("Sending:", message);
+      socket.send(JSON.stringify(message));
+    }
+
+    function createPeer() {
+      const iceServers = [
+        { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] },
+        {
+          urls: [
+            "turn:turn.cloudflare.com:3478?transport=udp",
+            "turn:turn.cloudflare.com:3478?transport=tcp",
+            "turns:turn.cloudflare.com:5349?transport=tcp",
+            "turn:turn.cloudflare.com:53?transport=udp",
+            "turn:turn.cloudflare.com:80?transport=tcp",
+            "turns:turn.cloudflare.com:443?transport=tcp"
+          ],
+          username: "g06029b93cd518b42c38009ea2d357ed52ef1fba78330a81c283fda35ee71131",
+          credential: "98f92c527bea47961e372c68c6e2ae3234def2ea48947ca0fed5c2adf177567b"
+        }
+      ];
+
+      const pc = new RTCPeerConnection({ iceServers });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && targetId) {
+          sendMessage(targetId, "ice", event.candidate);
+        }
+      };
+
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      return pc;
+    }
+
+    async function startCall() {
+      targetId = document.getElementById("targetId").value.trim();
+      if (!targetId) {
+        alert("Please enter the target client ID");
+        return;
+      }
+
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+
+      try {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        sendMessage(targetId, "offer", offer);
+      } catch (err) {
+        console.error("Error starting call:", err);
+      }
+    }
+
+    socket.addEventListener("open", async () => {
+      const mediaStatus = await checkMediaStatus();
+      if (mediaStatus.error) {
+        console.error("Media error:", mediaStatus.error);
+        return;
+      }
+
+      localStream = new MediaStream();
+
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
+      } catch (err) {
+        console.warn("Audio fetch failed:", err);
+      }
+
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoStream.getVideoTracks().forEach(track => localStream.addTrack(track));
+      } catch (err) {
+        console.warn("Video fetch failed:", err);
+      }
+
+      if (localStream.getTracks().length === 0) {
+        console.error("No media tracks available. Aborting WebRTC setup.");
+        return;
+      }
+
+      localVideo.srcObject = localStream;
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+    });
+
+    socket.addEventListener("message", async (event) => {
+      const msg = JSON.parse(event.data);
+      console.log("Message received:", msg);
+
+      if (msg.type === "welcome") {
+        myId = msg.id;
+        document.getElementById("idOutput").textContent = `My ID is ${myId}`;
+      }
+
+      if (msg.type === "offer") {
+        targetId = msg.from;
+        document.getElementById("incomingCallBanner").style.display = "block";
+
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          sendMessage(targetId, "answer", answer);
+        } catch (err) {
+          console.error("Error handling offer:", err);
+        }
+      }
+
+      if (msg.type === "answer") {
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        } catch (err) {
+          console.error("Error handling answer:", err);
+        }
+      }
+
+      if (msg.type === "ice") {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
+        } catch (e) {
+          console.error("Error adding ICE candidate:", e);
+        }
+      }
+    });
+  </script>
+</body>
 </html>
