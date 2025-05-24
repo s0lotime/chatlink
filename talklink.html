@@ -4,17 +4,6 @@
   <meta charset="UTF-8" />
   <title>Talklink - Chatlink Calling</title>
   <link rel="stylesheet" href="//cdn.chatlink.space/css/talklink.css"/>
-  <style>
-    #remoteVideo {
-      display: none; /* Hide remote video until call accepted */
-      width: 100%;
-      max-width: 600px;
-    }
-    #localVideo {
-      width: 100%;
-      max-width: 300px;
-    }
-  </style>
 </head>
 <body>
   <div id="incomingCallBanner" style="display:none;">
@@ -26,7 +15,7 @@
   <h1>Talklink</h1>
   <h1 id="idOutput">My ID is ...</h1>
   <video id="localVideo" autoplay playsinline muted></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline style="display:none;"></video>
   <br />
   <input id="targetId" placeholder="Target client ID" />
   <button onclick="startCall()">Start Call</button>
@@ -54,8 +43,6 @@
     let targetId;
     let incomingOffer = null;
     let remoteCandidatesQueue = []; // queue ICE candidates until remote description is set
-    let isCallAccepted = false; // caller-side flag
-    let isCallAcceptedByCallee = false; // callee-side flag
 
     async function checkMediaStatus() {
       const status = {
@@ -126,9 +113,6 @@
 
       pc.ontrack = (event) => {
         remoteVideo.srcObject = event.streams[0];
-        if (isCallAcceptedByCallee || isCallAccepted) {
-          remoteVideo.style.display = "block"; // Show remote video only if call accepted
-        }
       };
 
       return pc;
@@ -141,10 +125,9 @@
         return;
       }
 
-      isCallAccepted = false;
       peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
 
-      // Send offer without adding tracks yet — wait for accept
       try {
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
@@ -183,8 +166,8 @@
       }
 
       localVideo.srcObject = localStream;
-      // Do NOT create peer or add tracks here for incoming calls,
-      // peer will be created on accept for callee
+      peer = createPeer();
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     });
 
     socket.addEventListener("message", async (event) => {
@@ -203,25 +186,14 @@
         callerIdSpan.textContent = targetId;
         incomingCallBanner.style.display = "block";
 
-        // Don't create peer or set remote description yet — wait for accept
-
-      }
-
-      if (msg.type === "answer") {
-        if (!peer) return;
+        // Create peer if doesn't exist
+        if (!peer) {
+          peer = createPeer();
+        }
 
         try {
-          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-
-          if (!isCallAccepted) {
-            // Now that callee accepted, add local tracks and show controls
-            localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-            isCallAccepted = true;
-            toggleAudioBtn.style.display = "inline-block";
-            toggleVideoBtn.style.display = "inline-block";
-          }
-
-          // Add queued ICE candidates now
+          await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          // Queue ICE candidates but DO NOT send answer yet, wait for user acceptance
           remoteCandidatesQueue.forEach(async candidate => {
             try {
               await peer.addIceCandidate(candidate);
@@ -230,6 +202,28 @@
             }
           });
           remoteCandidatesQueue = [];
+        } catch (err) {
+          console.error("Error handling offer:", err);
+        }
+      }
+
+      if (msg.type === "answer") {
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          remoteCandidatesQueue.forEach(async candidate => {
+            try {
+              await peer.addIceCandidate(candidate);
+            } catch (e) {
+              console.error("Error adding queued ICE candidate:", e);
+            }
+          });
+          remoteCandidatesQueue = [];
+
+          // Show remote video and controls on call acceptance
+          remoteVideo.style.display = "block";
+          toggleAudioBtn.style.display = "inline-block";
+          toggleVideoBtn.style.display = "inline-block";
+
         } catch (err) {
           console.error("Error handling answer:", err);
         }
@@ -244,46 +238,39 @@
             console.error("Error adding ICE candidate:", e);
           }
         } else {
-          // Remote description not set yet, queue candidate
           remoteCandidatesQueue.push(candidate);
         }
       }
 
       if (msg.type === "decline") {
-        alert("Call was declined by the callee.");
+        alert("Your call was declined by the other user.");
         if (peer) {
           peer.close();
           peer = null;
         }
-        isCallAccepted = false;
+        remoteVideo.style.display = "none";
+        toggleAudioBtn.style.display = "none";
+        toggleVideoBtn.style.display = "none";
       }
     });
 
     acceptCallBtn.onclick = async () => {
       incomingCallBanner.style.display = "none";
-
       if (!peer) {
         peer = createPeer();
       }
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
 
       try {
         await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-
-        // Add local tracks and start streaming only now
-        localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         sendMessage(targetId, "answer", answer);
 
-        isCallAcceptedByCallee = true;
-
-        // Show video controls now
+        remoteVideo.style.display = "block";
         toggleAudioBtn.style.display = "inline-block";
         toggleVideoBtn.style.display = "inline-block";
-
-        // Show remote video once stream arrives
-        // remoteVideo.style.display = "block";  <-- handled on ontrack
 
       } catch (err) {
         console.error("Error accepting call:", err);
@@ -292,19 +279,21 @@
 
     declineCallBtn.onclick = () => {
       incomingCallBanner.style.display = "none";
-      incomingOffer = null;
       if (targetId) {
         sendMessage(targetId, "decline", { reason: "User declined the call." });
       }
+      incomingOffer = null;
       targetId = null;
+      remoteVideo.style.display = "none";
+      toggleAudioBtn.style.display = "none";
+      toggleVideoBtn.style.display = "none";
     };
 
-    // Toggle audio and video buttons functionality
     toggleAudioBtn.onclick = () => {
       if (!localStream) return;
       localStream.getAudioTracks().forEach(track => {
         track.enabled = !track.enabled;
-        toggleAudioBtn.textContent = `Audio (${track.enabled ? "On" : "Off"})`;
+        toggleAudioBtn.textContent = track.enabled ? "Audio (On)" : "Audio (Off)";
       });
     };
 
@@ -312,7 +301,7 @@
       if (!localStream) return;
       localStream.getVideoTracks().forEach(track => {
         track.enabled = !track.enabled;
-        toggleVideoBtn.textContent = `Video (${track.enabled ? "On" : "Off"})`;
+        toggleVideoBtn.textContent = track.enabled ? "Video (On)" : "Video (Off)";
       });
     };
   </script>
