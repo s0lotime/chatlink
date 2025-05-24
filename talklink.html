@@ -49,25 +49,6 @@
       margin: 20px auto;
       border-radius: 5px;
     }
-    #incomingCall {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #2ecc71;
-      color: white;
-      padding: 15px 30px;
-      border-radius: 20px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-      font-size: 1.2em;
-      z-index: 1000;
-      opacity: 0;
-      transition: opacity 0.3s ease-in-out;
-    }
-    #incomingCall.show {
-      display: block;
-      opacity: 1;
-    }
     #incomingCallBanner {
       display: none;
       position: fixed;
@@ -90,12 +71,11 @@
   </style>
 </head>
 <body>
-<div id="incomingCallBanner" style="display:none;">
-  📞 Incoming Call from <span id="callerId"></span>
-  <br />
-  <button id="acceptCallBtn">Accept</button>
-  <button id="declineCallBtn">Decline</button>
-</div>
+  <div id="incomingCallBanner">
+    📞 Incoming Call from <span id="callerId"></span><br />
+    <button id="acceptCallBtn">Accept</button>
+    <button id="declineCallBtn">Decline</button>
+  </div>
 
   <h1>Talklink</h1>
   <h1 id="idOutput">My ID is ...</h1>
@@ -127,6 +107,7 @@
     let myId;
     let targetId;
     let incomingOffer = null;
+    let remoteCandidatesQueue = []; // queue ICE candidates until remote description is set
 
     async function checkMediaStatus() {
       const status = {
@@ -252,86 +233,122 @@
       localVideo.srcObject = localStream;
       peer = createPeer();
       localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+
+      // Once connected, server sends 'init' with your id
+      // We'll receive it in the message event below
     });
 
     socket.addEventListener("message", async (event) => {
       const msg = JSON.parse(event.data);
       console.log("Message received:", msg);
 
-      if (msg.type === "welcome") {
-        myId = msg.id;
-        document.getElementById("idOutput").textContent = `My ID is ${myId}`;
+      if (msg.type === "init") {
+        myId = msg.payload;
+        document.getElementById("idOutput").textContent = "My ID is " + myId;
       }
 
       if (msg.type === "offer") {
         targetId = msg.from;
-        incomingOffer = msg.payload
+        incomingOffer = msg.payload;
 
         callerIdSpan.textContent = targetId;
         incomingCallBanner.style.display = "block";
 
-        //try {
-          //await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-          //const answer = await peer.createAnswer();
-          //await peer.setLocalDescription(answer);
-          //sendMessage(targetId, "answer", answer);
-        //} catch (err) {
-          //console.error("Error handling offer:", err);
-        //}
+        // Create peer if doesn't exist
+        if (!peer) {
+          peer = createPeer();
+        }
+
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          remoteCandidatesQueue.forEach(async candidate => {
+            try {
+              await peer.addIceCandidate(candidate);
+            } catch (e) {
+              console.error("Error adding queued ICE candidate:", e);
+            }
+          });
+          remoteCandidatesQueue = [];
+
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          sendMessage(targetId, "answer", answer);
+        } catch (err) {
+          console.error("Error handling offer:", err);
+        }
       }
 
       if (msg.type === "answer") {
         try {
           await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          // Add any queued ICE candidates now
+          remoteCandidatesQueue.forEach(async candidate => {
+            try {
+              await peer.addIceCandidate(candidate);
+            } catch (e) {
+              console.error("Error adding queued ICE candidate:", e);
+            }
+          });
+          remoteCandidatesQueue = [];
         } catch (err) {
           console.error("Error handling answer:", err);
         }
       }
 
       if (msg.type === "ice") {
-        try {
-          await peer.addIceCandidate(new RTCIceCandidate(msg.payload));
-        } catch (e) {
-          console.error("Error adding ICE candidate:", e);
+        const candidate = new RTCIceCandidate(msg.payload);
+        if (peer && peer.remoteDescription && peer.remoteDescription.type) {
+          try {
+            await peer.addIceCandidate(candidate);
+          } catch (e) {
+            console.error("Error adding ICE candidate:", e);
+          }
+        } else {
+          // Remote description not set yet, queue candidate
+          remoteCandidatesQueue.push(candidate);
         }
       }
-
-      acceptCallBtn.onclick = async () => {
-  incomingCallBanner.style.display = "none";
-
-  if (!incomingOffer) {
-    console.error("No incoming offer to accept");
-    return;
-  }
-
-  peer = createPeer();
-  try {
-    await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-    const answer = await peer.createAnswer();
-    await peer.setLocalDescription(answer);
-    sendMessage(targetId, "answer", answer);
-    
-    if (!localStream) {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      localVideo.srcObject = localStream;
-    }
-    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-  } catch (err) {
-    console.error("Error accepting call:", err);
-  }
-
-  incomingOffer = null;
-};
-
-      declineCallBtn.onclick = () => {
-  incomingCallBanner.style.display = "none";
-
-  // Optional: send decline message to caller
-  sendMessage(targetId, "decline", { reason: "User declined the call" });
-
-  incomingOffer = null;
-};
     });
+
+    acceptCallBtn.onclick = async () => {
+      incomingCallBanner.style.display = "none";
+      if (!peer) {
+        peer = createPeer();
+      }
+      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+
+      try {
+        await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        sendMessage(targetId, "answer", answer);
+      } catch (err) {
+        console.error("Error accepting call:", err);
+      }
+    };
+
+    declineCallBtn.onclick = () => {
+      incomingCallBanner.style.display = "none";
+      incomingOffer = null;
+      targetId = null;
+    };
+
+    toggleAudioBtn.onclick = () => {
+      if (!localStream) return;
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = !track.enabled;
+        toggleAudioBtn.textContent = track.enabled ? "Audio (On)" : "Audio (Off)";
+      });
+    };
+
+    toggleVideoBtn.onclick = () => {
+      if (!localStream) return;
+      localStream.getVideoTracks().forEach(track => {
+        track.enabled = !track.enabled;
+        toggleVideoBtn.textContent = track.enabled ? "Video (On)" : "Video (Off)";
+      });
+    };
   </script>
 </body>
 </html>
