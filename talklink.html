@@ -21,7 +21,6 @@
   <button onclick="startCall()">Start Call</button>
   <button style="display: none" id="toggleAudio">Audio (On)</button>
   <button style="display: none" id="toggleVideo">Video (On)</button>
-  <canvas id="equalizer"></canvas>
   <h2>
     Welcome to Talklink! Talklink sounds exactly how it is — a way to talk to friends in realtime through voice or video. Right now, Talklink works on an ID exchange system. IDs are unique and change on reload of the page. To call someone, ask for their ID through Chatlink rooms or another source. Only two-user calls are allowed currently.
   </h2>
@@ -44,6 +43,7 @@
     let incomingOffer = null;
     let remoteCandidatesQueue = [];
 
+    // Your media status check function — integrated here:
     async function checkMediaStatus() {
       const status = {
         micPermission: 'unknown',
@@ -252,29 +252,28 @@
     });
 
     acceptCallBtn.onclick = async () => {
-  incomingCallBanner.style.display = "none";
+      incomingCallBanner.style.display = "none";
 
-  if (!peer) {
-    peer = createPeer();
-    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-  }
+      if (!peer) {
+        peer = createPeer();
+        localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+      }
 
-  try {
-    await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+      try {
+        await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
 
-    const answer = await peer.createAnswer();
-    await peer.setLocalDescription(answer);
-    sendMessage(targetId, "answer", answer);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        sendMessage(targetId, "answer", answer);
 
-    remoteVideo.style.display = "inline";
-    toggleAudioBtn.style.display = "inline-block";
-    toggleVideoBtn.style.display = "inline-block";
+        remoteVideo.style.display = "inline";
+        toggleAudioBtn.style.display = "inline-block";
+        toggleVideoBtn.style.display = "inline-block";
 
-  } catch (err) {
-    console.error("Error accepting call:", err);
-  }
-};
-
+      } catch (err) {
+        console.error("Error accepting call:", err);
+      }
+    };
 
     declineCallBtn.onclick = () => {
       incomingCallBanner.style.display = "none";
