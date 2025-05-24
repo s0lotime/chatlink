@@ -90,7 +90,13 @@
   </style>
 </head>
 <body>
-  <div id="incomingCallBanner">📞 Incoming Call...</div>
+<div id="incomingCallBanner" style="display:none;">
+  📞 Incoming Call from <span id="callerId"></span>
+  <br />
+  <button id="acceptCallBtn">Accept</button>
+  <button id="declineCallBtn">Decline</button>
+</div>
+
   <h1>Talklink</h1>
   <h1 id="idOutput">My ID is ...</h1>
   <video id="localVideo" autoplay playsinline muted></video>
@@ -110,12 +116,17 @@
     const remoteVideo = document.getElementById("remoteVideo");
     const toggleAudioBtn = document.getElementById("toggleAudio");
     const toggleVideoBtn = document.getElementById("toggleVideo");
+    const incomingCallBanner = document.getElementById("incomingCallBanner");
+    const callerIdSpan = document.getElementById("callerId");
+    const acceptCallBtn = document.getElementById("acceptCallBtn");
+    const declineCallBtn = document.getElementById("declineCallBtn");
     const socket = new WebSocket("wss://chatlink.space/messagerouting/call/connection?room=default");
 
     let localStream;
     let peer;
     let myId;
     let targetId;
+    let incomingOffer = null;
 
     async function checkMediaStatus() {
       const status = {
@@ -254,16 +265,19 @@
 
       if (msg.type === "offer") {
         targetId = msg.from;
-        document.getElementById("incomingCallBanner").style.display = "block";
+        incomingOffer = msg.payload
 
-        try {
-          await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-          sendMessage(targetId, "answer", answer);
-        } catch (err) {
-          console.error("Error handling offer:", err);
-        }
+        callerIdSpan.textContent = targetId;
+        incomingCallBanner.style.display = "block";
+
+        //try {
+          //await peer.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          //const answer = await peer.createAnswer();
+          //await peer.setLocalDescription(answer);
+          //sendMessage(targetId, "answer", answer);
+        //} catch (err) {
+          //console.error("Error handling offer:", err);
+        //}
       }
 
       if (msg.type === "answer") {
@@ -281,6 +295,42 @@
           console.error("Error adding ICE candidate:", e);
         }
       }
+
+      acceptCallBtn.onclick = async () => {
+  incomingCallBanner.style.display = "none";
+
+  if (!incomingOffer) {
+    console.error("No incoming offer to accept");
+    return;
+  }
+
+  peer = createPeer();
+  try {
+    await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+    sendMessage(targetId, "answer", answer);
+    
+    if (!localStream) {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      localVideo.srcObject = localStream;
+    }
+    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+  } catch (err) {
+    console.error("Error accepting call:", err);
+  }
+
+  incomingOffer = null;
+};
+
+      declineCallBtn.onclick = () => {
+  incomingCallBanner.style.display = "none";
+
+  // Optional: send decline message to caller
+  sendMessage(targetId, "decline", { reason: "User declined the call" });
+
+  incomingOffer = null;
+};
     });
   </script>
 </body>
