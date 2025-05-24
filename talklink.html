@@ -175,8 +175,7 @@
       console.log("Message received:", msg);
 
       if (msg.type === "welcome") {
-        myId = msg.payload.id;
-        console.log(msg.payload);
+        myId = msg.id;
         document.getElementById("idOutput").textContent = "My ID is " + myId;
       }
 
