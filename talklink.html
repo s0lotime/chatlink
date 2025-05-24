@@ -255,27 +255,29 @@
     });
 
     acceptCallBtn.onclick = async () => {
-      incomingCallBanner.style.display = "none";
-      if (!peer) {
-        peer = createPeer();
-      }
-      localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+  incomingCallBanner.style.display = "none";
 
-      try {
-        await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+  if (!peer) {
+    peer = createPeer();
+    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+  }
 
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        sendMessage(targetId, "answer", answer);
+  try {
+    await peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
 
-        remoteVideo.style.display = "block";
-        toggleAudioBtn.style.display = "inline-block";
-        toggleVideoBtn.style.display = "inline-block";
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+    sendMessage(targetId, "answer", answer);
 
-      } catch (err) {
-        console.error("Error accepting call:", err);
-      }
-    };
+    remoteVideo.style.display = "block";
+    toggleAudioBtn.style.display = "inline-block";
+    toggleVideoBtn.style.display = "inline-block";
+
+  } catch (err) {
+    console.error("Error accepting call:", err);
+  }
+};
+
 
     declineCallBtn.onclick = () => {
       incomingCallBanner.style.display = "none";
