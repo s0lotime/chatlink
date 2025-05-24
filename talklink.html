@@ -77,12 +77,31 @@
   opacity: 1;
 }
 
+    #incomingCallBanner {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #2e7d32;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 12px;
+    font-size: 1.2em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    animation: fadeIn 0.4s ease forwards;
+    z-index: 1000;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; top: 0px; }
+    to { opacity: 1; top: 10px; }
+  }
+
   </style>
 </head>
 <body>
-  <div id="incomingCall" style="display: none;">
-    Incoming call...
-  </div>
+  <div id="incomingCallBanner">📞 Incoming Call...</div>
   <h1>Talklink</h1>
   <h1 id="idOutput">My ID is ...</h1>
 
@@ -113,16 +132,79 @@
     let targetId;
 
     socket.addEventListener("open", async () => {
-  console.log("WebSocket connected");
 
-      function showIncomingCall() {
-  const banner = document.getElementById("incomingCall");
-  banner.classList.add("show");
+  async function checkMediaStatus() {
+    const status = {
+      micPermission: 'unknown',
+      camPermission: 'unknown',
+      hasAudio: false,
+      audioEnabled: false,
+      hasVideo: false,
+      videoEnabled: false,
+      error: null
+    };
 
-  setTimeout(() => {
-    banner.classList.remove("show");
-    setTimeout(() => banner.style.display = "none", 300); // Hide after fade-out
-  }, 5000); // Display for 5 seconds
+    try {
+      const micPerm = await navigator.permissions.query({ name: 'microphone' });
+      const camPerm = await navigator.permissions.query({ name: 'camera' });
+
+      status.micPermission = micPerm.state;
+      status.camPermission = camPerm.state;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+      const audioTracks = stream.getAudioTracks();
+      status.hasAudio = audioTracks.length > 0;
+      status.audioEnabled = audioTracks.some(t => t.enabled);
+
+      const videoTracks = stream.getVideoTracks();
+      status.hasVideo = videoTracks.length > 0;
+      status.videoEnabled = videoTracks.some(t => t.enabled);
+
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      status.error = err.name || err.message;
+    }
+
+    console.log("Media Status:", status);
+    return status;
+  }
+
+  const mediaStatus = await checkMediaStatus();
+  if (mediaStatus.error) {
+    console.error("Media error:", mediaStatus.error);
+  }
+  if (mediaStatus.micPermission !== "granted" || mediaStatus.camPermission !== "granted") {
+    console.warn("Permissions not granted for microphone and/or camera.");
+  }
+
+  localStream = new MediaStream();
+
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioStream.getAudioTracks().forEach(track => localStream.addTrack(track));
+  } catch (err) {
+    console.warn("Audio fetch failed:", err);
+  }
+
+  try {
+    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoStream.getVideoTracks().forEach(track => {
+      localStream.addTrack(track);
+    });
+  } catch (err) {
+    console.warn("Video fetch failed:", err);
+  }
+
+  if (localStream.getTracks().length === 0) {
+    console.error("No media tracks available. Aborting WebRTC setup.");
+    return;
+  }
+
+  localVideo.srcObject = localStream;
+
+  peer = createPeer();
+  localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
 }
 
 
@@ -337,6 +419,16 @@
         console.error("Failed to start call:", e);
       }
     }
+
+    function showIncomingCall() {
+    const banner = document.getElementById("incomingCallBanner");
+    banner.style.display = "block";
+
+    // Optional auto-hide after 5 seconds
+    setTimeout(() => {
+      banner.style.display = "none";
+    }, 5000);
+  }
 
     toggleAudioBtn.addEventListener("click", () => {
       if (!localStream) return;
