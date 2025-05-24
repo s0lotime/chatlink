@@ -43,7 +43,11 @@
     let incomingOffer = null;
     let remoteCandidatesQueue = [];
 
-    // Your media status check function — integrated here:
+    if (Notification.permission === "default") {
+  Notification.requestPermission().then(permission => {
+    console.log("notif perms:", permission);
+  });
+}
     async function checkMediaStatus() {
       const status = {
         micPermission: 'unknown',
@@ -183,6 +187,21 @@
 
         callerIdSpan.textContent = targetId;
         incomingCallBanner.style.display = "block";
+
+        if (Notification.permission === "granted") {
+    const notification = new Notification("Talklink Incoming Call", {
+      body: `Call from ${targetId}`,
+      icon: "//cdn.chatlink.space/images/phone.png",
+      tag: "incoming-call",
+      renotify: true,
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      incomingCallBanner.style.display = "block";
+      notification.close();
+    };
+  }
         
         if (!peer) {
           peer = createPeer();
