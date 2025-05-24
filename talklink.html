@@ -125,6 +125,7 @@
         return;
       }
 
+      localVideo.srcObject = localStream;
       peer = createPeer();
       localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
 
@@ -165,7 +166,6 @@
         return;
       }
 
-      localVideo.srcObject = localStream;
       peer = createPeer();
       localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     });
