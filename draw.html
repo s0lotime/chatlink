@@ -1,97 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <title>Chatlink Draw</title>
-    <link rel="stylesheet" href="https://cdn.chatlink.space/css/draw.css"/>
-</head>
-<body>
-    <div id="toolbar">
-        Room ID: <input type="text" id="roomInput" placeholder="room123">
-        <button id="joinBtn">Join Room</button>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.chatlink.space/css/chat.css" />
+    <link rel="stylesheet" href="https://cdn.chatlink.space/css/404.css" />
+    <link rel="apple-touch-icon" href="/favicon.ico">
+  </head>
+  
+  <body>
+    <div class="error-wrapper">
+      <div class="error-title">End of support</div>
+      <div class="error-message" style="color: #FFFF">Chatlink no longer supports or maintains the Chatlink Draw service. Effective: May 31, 2025</div>
+      <a href="/" id="send-button" class="error-button">Go Home</a>
     </div>
-    <div class="drawingAreaWrapper">
-        <canvas id="drawingCanvas" width="800" height="600"></canvas>
-    </div>
-
-    <script>
-        const canvas = document.getElementById('drawingCanvas');
-        const ctx = canvas.getContext('2d');
-        let drawing = false;
-        let roomId = null;
-        let ws = null;
-
-        document.getElementById('joinBtn').addEventListener('click', () => {
-            roomId = document.getElementById('roomInput').value.trim();
-            if (roomId) {
-                connectWebSocket(roomId);
-            }
-        });
-
-        function connectWebSocket(room) {
-            ws = new WebSocket(`wss://chatlink.space/messagerouting/drawing/connection?room=${room}`);
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'draw') {
-                    drawLine(data.x0, data.y0, data.x1, data.y1, data.color, false);
-                }
-            };
-        }
-
-        let lastX = 0, lastY = 0;
-        const color = '#000';
-
-        // Mouse events for desktop
-        canvas.addEventListener('mousedown', (e) => { 
-            drawing = true; 
-            [lastX, lastY] = [e.offsetX, e.offsetY]; 
-        });
-        canvas.addEventListener('mouseup', () => { drawing = false; });
-        canvas.addEventListener('mouseout', () => { drawing = false; });
-        canvas.addEventListener('mousemove', draw);
-
-        // Touch events for mobile
-        canvas.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); 
-            drawing = true; 
-            const touch = e.touches[0]; 
-            [lastX, lastY] = [touch.pageX - canvas.offsetLeft, touch.pageY - canvas.offsetTop]; 
-        });
-        canvas.addEventListener('touchend', () => { drawing = false; });
-        canvas.addEventListener('touchcancel', () => { drawing = false; });
-        canvas.addEventListener('touchmove', (e) => { 
-            e.preventDefault();
-            draw(e);
-        });
-
-        function draw(e) {
-            if (!drawing || !ws) return;
-            let x, y;
-            if (e.touches) {
-                const touch = e.touches[0];
-                x = touch.pageX - canvas.offsetLeft;
-                y = touch.pageY - canvas.offsetTop;
-            } else {
-                x = e.offsetX;
-                y = e.offsetY;
-            }
-            drawLine(lastX, lastY, x, y, color, true);
-            [lastX, lastY] = [x, y];
-        }
-
-        function drawLine(x0, y0, x1, y1, color, emit) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-            ctx.closePath();
-
-            if (!emit) return;
-            const data = { type: 'draw', x0, y0, x1, y1, color };
-            ws.send(JSON.stringify(data));
-        }
-    </script>
-</body>
+  </body>
 </html>
